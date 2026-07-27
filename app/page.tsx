@@ -1,0 +1,1098 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+type ObjectKind = "plant" | "tree" | "structure";
+
+type PlotObject = {
+  id: string;
+  name: string;
+  kind: ObjectKind;
+  x: number;
+  y: number;
+  height: number;
+  canopy: number;
+  color: string;
+  context?: boolean;
+};
+
+type PlanData = {
+  objects: PlotObject[];
+  latitude: number;
+  longitude: number;
+  sourceNote: string;
+};
+
+type SolarPosition = {
+  elevation: number;
+  azimuth: number;
+};
+
+const PLOT_3P: [number, number][] = [
+  [0, 0],
+  [4.25, 0],
+  [4.85, 4.55],
+];
+
+const PLOT_3O: [number, number][] = [
+  [0, -3.25],
+  [4.25, -3.25],
+  [4.25, 0],
+  [0, 0],
+];
+
+const PLOT_3A: [number, number][] = [
+  [4.25, 0],
+  [7.35, -0.05],
+  [7.55, 4.05],
+  [4.85, 4.55],
+];
+
+const ACCESSIBLE_BEDS: [number, number][] = [
+  [4.95, 4.95],
+  [5.75, 5.55],
+  [8.7, 5.15],
+  [8.85, 4.4],
+  [5.9, 4.55],
+];
+
+const CONTEXT_TREES: PlotObject[] = [
+  {
+    id: "tree-nw",
+    name: "North-west tree",
+    kind: "tree",
+    x: -1.45,
+    y: 6.6,
+    height: 8,
+    canopy: 3.4,
+    color: "#48654b",
+    context: true,
+  },
+  {
+    id: "tree-n1",
+    name: "Northern tree 1",
+    kind: "tree",
+    x: 1.55,
+    y: 8.45,
+    height: 10,
+    canopy: 4.2,
+    color: "#3e6046",
+    context: true,
+  },
+  {
+    id: "tree-n2",
+    name: "Northern tree 2",
+    kind: "tree",
+    x: 5.15,
+    y: 8.3,
+    height: 11,
+    canopy: 4.6,
+    color: "#3b5940",
+    context: true,
+  },
+];
+
+const DEFAULT_PLAN: PlanData = {
+  objects: CONTEXT_TREES,
+  latitude: -37.766,
+  longitude: 144.983,
+  sourceNote:
+    "Triangular Plot 3P Half and nearby context traced from Community Garden Layout 6.2026 (1:250 @ A3). Its 6.6 m diagonal edge is the perimeter fence; tree heights are editable assumptions.",
+};
+
+const STORAGE_KEY = "plot-3p-plan-v1";
+
+const KIND_DEFAULTS: Record<
+  ObjectKind,
+  { name: string; height: number; canopy: number; color: string }
+> = {
+  plant: { name: "New planting", height: 0.5, canopy: 0.45, color: "#89a642" },
+  tree: { name: "New tree", height: 3, canopy: 2, color: "#4b7a4e" },
+  structure: {
+    name: "New structure",
+    height: 1.8,
+    canopy: 0.8,
+    color: "#a36d42",
+  },
+};
+
+const RAD = Math.PI / 180;
+const J1970 = 2440588;
+const J2000 = 2451545;
+
+function toJulian(date: Date) {
+  return date.valueOf() / 86400000 - 0.5 + J1970;
+}
+
+function rightAscension(l: number, b: number) {
+  const e = RAD * 23.4397;
+  return Math.atan2(
+    Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e),
+    Math.cos(l),
+  );
+}
+
+function declination(l: number, b: number) {
+  const e = RAD * 23.4397;
+  return Math.asin(
+    Math.sin(b) * Math.cos(e) +
+      Math.cos(b) * Math.sin(e) * Math.sin(l),
+  );
+}
+
+function solarPosition(
+  date: Date,
+  latitude: number,
+  longitude: number,
+): SolarPosition {
+  const d = toJulian(date) - J2000;
+  const lw = -longitude * RAD;
+  const phi = latitude * RAD;
+  const meanAnomaly = RAD * (357.5291 + 0.98560028 * d);
+  const equation =
+    RAD *
+    (1.9148 * Math.sin(meanAnomaly) +
+      0.02 * Math.sin(2 * meanAnomaly) +
+      0.0003 * Math.sin(3 * meanAnomaly));
+  const perihelion = RAD * 102.9372;
+  const longitudeEcliptic = meanAnomaly + equation + perihelion + Math.PI;
+  const dec = declination(longitudeEcliptic, 0);
+  const ra = rightAscension(longitudeEcliptic, 0);
+  const sidereal = RAD * (280.16 + 360.9856235 * d) - lw;
+  const hourAngle = sidereal - ra;
+  const altitude = Math.asin(
+    Math.sin(phi) * Math.sin(dec) +
+      Math.cos(phi) * Math.cos(dec) * Math.cos(hourAngle),
+  );
+  const azFromSouth = Math.atan2(
+    Math.sin(hourAngle),
+    Math.cos(hourAngle) * Math.sin(phi) -
+      Math.tan(dec) * Math.cos(phi),
+  );
+
+  return {
+    elevation: altitude / RAD,
+    azimuth: ((azFromSouth / RAD + 180) % 360 + 360) % 360,
+  };
+}
+
+function zonedDate(dateString: string, minutes: number) {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  let guess = Date.UTC(year, month - 1, day, hours, mins);
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+  for (let i = 0; i < 2; i += 1) {
+    const parts = Object.fromEntries(
+      formatter
+        .formatToParts(new Date(guess))
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, Number(part.value)]),
+    );
+    const shown = Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      parts.hour,
+      parts.minute,
+    );
+    const wanted = Date.UTC(year, month - 1, day, hours, mins);
+    guess += wanted - shown;
+  }
+  return new Date(guess);
+}
+
+function formatTime(minutes: number) {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const suffix = hour >= 12 ? "pm" : "am";
+  const shownHour = hour % 12 || 12;
+  return `${shownHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+}
+
+function todayMelbourne() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function daylightSummary(
+  dateString: string,
+  latitude: number,
+  longitude: number,
+) {
+  let sunrise = 0;
+  let sunset = 0;
+  let maxElevation = -90;
+  let solarNoon = 720;
+  let wasUp = false;
+  for (let minute = 0; minute <= 1440; minute += 5) {
+    const altitude = solarPosition(
+      zonedDate(dateString, minute),
+      latitude,
+      longitude,
+    ).elevation;
+    const isUp = altitude > -0.833;
+    if (!wasUp && isUp) sunrise = minute;
+    if (wasUp && !isUp) sunset = minute;
+    if (altitude > maxElevation) {
+      maxElevation = altitude;
+      solarNoon = minute;
+    }
+    wasUp = isUp;
+  }
+  return { sunrise, sunset, maxElevation, solarNoon };
+}
+
+function pointInPolygon(point: [number, number], polygon: [number, number][]) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersect =
+      yi > point[1] !== yj > point[1] &&
+      point[0] <
+        ((xj - xi) * (point[1] - yi)) / (yj - yi + Number.EPSILON) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function shadowVector(item: PlotObject, sun: SolarPosition) {
+  if (sun.elevation <= 0.3) return { dx: 0, dy: 0, length: 0 };
+  const length = Math.min(45, item.height / Math.tan(sun.elevation * RAD));
+  const bearing = (sun.azimuth + 180) * RAD;
+  return {
+    dx: Math.sin(bearing) * length,
+    dy: Math.cos(bearing) * length,
+    length,
+  };
+}
+
+function shadowTouchesPolygon(
+  item: PlotObject,
+  sun: SolarPosition,
+  polygon: [number, number][],
+) {
+  const shadow = shadowVector(item, sun);
+  if (!shadow.length) return false;
+  const steps = Math.max(8, Math.ceil(shadow.length / 0.2));
+  for (let i = 0; i <= steps; i += 1) {
+    const ratio = i / steps;
+    const point: [number, number] = [
+      item.x + shadow.dx * ratio,
+      item.y + shadow.dy * ratio,
+    ];
+    if (pointInPolygon(point, polygon)) return true;
+  }
+  return false;
+}
+
+function localPoint(
+  event: React.PointerEvent<HTMLCanvasElement>,
+  canvas: HTMLCanvasElement,
+  transform: { left: number; bottom: number; scale: number },
+) {
+  const rect = canvas.getBoundingClientRect();
+  const x = ((event.clientX - rect.left) * canvas.width) / rect.width;
+  const y = ((event.clientY - rect.top) * canvas.height) / rect.height;
+  return {
+    x: (x - transform.left) / transform.scale - 3.5,
+    y: (canvas.height - transform.bottom - y) / transform.scale - 3.5,
+  };
+}
+
+function polygonPath(
+  context: CanvasRenderingContext2D,
+  points: [number, number][],
+  world: (x: number, y: number) => [number, number],
+) {
+  points.forEach(([x, y], index) => {
+    const [screenX, screenY] = world(x, y);
+    if (index === 0) context.moveTo(screenX, screenY);
+    else context.lineTo(screenX, screenY);
+  });
+  context.closePath();
+}
+
+function PlotCanvas({
+  plan,
+  sun,
+  selectedId,
+  onSelect,
+  onMove,
+  zoom,
+}: {
+  plan: PlanData;
+  sun: SolarPosition;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onMove: (id: string, x: number, y: number) => void;
+  zoom: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const dragRef = useRef<string | null>(null);
+  const transformRef = useRef({ left: 0, bottom: 0, scale: 1 });
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const rect = canvas.getBoundingClientRect();
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(720, rect.width * ratio);
+    canvas.height = Math.max(620, rect.height * ratio);
+
+    const bounds = 14;
+    const padding = 48 * ratio;
+    const scale =
+      (Math.min(canvas.width, canvas.height) - padding * 2) / bounds * zoom;
+    const left = (canvas.width - bounds * scale) / 2;
+    const bottom = (canvas.height - bounds * scale) / 2;
+    transformRef.current = { left, bottom, scale };
+    const world = (x: number, y: number): [number, number] => [
+      left + (x + 3.5) * scale,
+      canvas.height - bottom - (y + 3.5) * scale,
+    ];
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#f4f0e5";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.save();
+    context.strokeStyle = "rgba(47, 67, 50, .09)";
+    context.lineWidth = 1;
+    for (let metre = -3; metre <= 10; metre += 1) {
+      const [verticalX] = world(metre, 0);
+      const [, horizontalY] = world(0, metre);
+      context.beginPath();
+      context.moveTo(verticalX, bottom);
+      context.lineTo(verticalX, canvas.height - bottom);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(left, horizontalY);
+      context.lineTo(canvas.width - left, horizontalY);
+      context.stroke();
+    }
+    context.restore();
+
+    const drawPolygon = (
+      points: [number, number][],
+      fill: string,
+      stroke: string,
+      lineWidth = 1.5,
+    ) => {
+      context.beginPath();
+      polygonPath(context, points, world);
+      context.fillStyle = fill;
+      context.fill();
+      context.strokeStyle = stroke;
+      context.lineWidth = lineWidth * ratio;
+      context.stroke();
+    };
+
+    drawPolygon(
+      [
+        [-3.5, 5.75],
+        [10.5, 5.75],
+        [10.5, 7.15],
+        [-3.5, 7.15],
+      ],
+      "#ddd9ce",
+      "#cbc4b6",
+    );
+    const [laneX, laneY] = world(2.7, 6.42);
+    context.fillStyle = "#686557";
+    context.font = `${12 * ratio}px ui-sans-serif`;
+    context.textAlign = "center";
+    context.fillText("VILLAGE LANEWAY", laneX, laneY);
+
+    drawPolygon(PLOT_3O, "#e1d6b6", "#9d9278", 1.4);
+    drawPolygon(PLOT_3A, "#e9e1ca", "#aaa086", 1.4);
+    drawPolygon(ACCESSIBLE_BEDS, "#a7cd83", "#66815b", 1.4);
+    drawPolygon(PLOT_3P, "#8dcc78", "#325c40", 2.4);
+
+    const labels: Array<[string, number, number, string]> = [
+      ["PLOT 3P · HALF", 3.25, 1.45, "#173c28"],
+      ["3O · HALF", 2.15, -1.65, "#756b54"],
+      ["3A · HALF", 6.05, 1.9, "#756b54"],
+      ["ACCESSIBLE BEDS", 6.8, 4.95, "#43623e"],
+      ["COMMUNITY HUB", -2.15, 2.75, "#7b776c"],
+    ];
+    context.font = `600 ${10.5 * ratio}px ui-sans-serif`;
+    context.textAlign = "center";
+    labels.forEach(([label, x, y, color]) => {
+      const [screenX, screenY] = world(x, y);
+      context.fillStyle = color;
+      context.fillText(label, screenX, screenY);
+    });
+
+    const [fenceStartX, fenceStartY] = world(0, 0);
+    const [fenceEndX, fenceEndY] = world(4.85, 4.55);
+    context.save();
+    context.strokeStyle = "#18281d";
+    context.lineWidth = 5.2 * ratio;
+    context.lineCap = "round";
+    context.setLineDash([2 * ratio, 7 * ratio]);
+    context.beginPath();
+    context.moveTo(fenceStartX, fenceStartY);
+    context.lineTo(fenceEndX, fenceEndY);
+    context.stroke();
+    context.setLineDash([]);
+    const fenceMidX = (fenceStartX + fenceEndX) / 2;
+    const fenceMidY = (fenceStartY + fenceEndY) / 2;
+    context.translate(fenceMidX, fenceMidY);
+    context.rotate(Math.atan2(fenceEndY - fenceStartY, fenceEndX - fenceStartX));
+    context.fillStyle = "rgba(255, 253, 247, .9)";
+    context.fillRect(-87 * ratio, -18 * ratio, 174 * ratio, 18 * ratio);
+    context.fillStyle = "#21362a";
+    context.font = `700 ${8.8 * ratio}px ui-sans-serif`;
+    context.textAlign = "center";
+    context.fillText(
+      "FENCE · 6.6 m · CLIMBING SUPPORT",
+      0,
+      -6 * ratio,
+    );
+    context.restore();
+
+    if (sun.elevation > 0.3) {
+      plan.objects.forEach((item) => {
+        if (item.height <= 0) return;
+        const shadow = shadowVector(item, sun);
+        const [startX, startY] = world(item.x, item.y);
+        const [endX, endY] = world(item.x + shadow.dx, item.y + shadow.dy);
+        const gradient = context.createLinearGradient(
+          startX,
+          startY,
+          endX,
+          endY,
+        );
+        gradient.addColorStop(0, "rgba(39, 50, 43, .24)");
+        gradient.addColorStop(1, "rgba(39, 50, 43, .10)");
+        context.save();
+        context.strokeStyle = gradient;
+        context.lineWidth = Math.max(5, item.canopy * scale * 0.72);
+        context.lineCap = "round";
+        context.beginPath();
+        context.moveTo(startX, startY);
+        context.lineTo(endX, endY);
+        context.stroke();
+        context.fillStyle = "rgba(39, 50, 43, .11)";
+        context.beginPath();
+        context.arc(endX, endY, (item.canopy * scale) / 2, 0, Math.PI * 2);
+        context.fill();
+        context.restore();
+      });
+    } else {
+      context.fillStyle = "rgba(35, 45, 58, .24)";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    plan.objects.forEach((item) => {
+      const [x, y] = world(item.x, item.y);
+      const radius = Math.max(6 * ratio, (item.canopy * scale) / 2);
+      context.save();
+      if (item.kind === "tree") {
+        context.fillStyle = `${item.color}35`;
+        context.strokeStyle = item.color;
+        context.lineWidth = 1.5 * ratio;
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+        context.fillStyle = "#55422f";
+        context.beginPath();
+        context.arc(x, y, 3.2 * ratio, 0, Math.PI * 2);
+        context.fill();
+      } else if (item.kind === "structure") {
+        context.fillStyle = item.color;
+        context.strokeStyle = "#69492f";
+        context.lineWidth = 1.5 * ratio;
+        context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+        context.strokeRect(x - radius, y - radius, radius * 2, radius * 2);
+      } else {
+        context.fillStyle = item.color;
+        context.strokeStyle = "#4e672d";
+        context.lineWidth = 1.4 * ratio;
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+      }
+      if (item.id === selectedId) {
+        context.strokeStyle = "#d85f38";
+        context.lineWidth = 2.5 * ratio;
+        context.setLineDash([5 * ratio, 4 * ratio]);
+        context.beginPath();
+        context.arc(x, y, radius + 6 * ratio, 0, Math.PI * 2);
+        context.stroke();
+      }
+      context.fillStyle = "#24362a";
+      context.font = `600 ${9.5 * ratio}px ui-sans-serif`;
+      context.textAlign = "center";
+      context.fillText(
+        item.name,
+        x,
+        y + radius + 13 * ratio,
+        Math.max(75 * ratio, radius * 2.5),
+      );
+      context.restore();
+    });
+
+    const scaleX = left + 18 * ratio;
+    const scaleY = canvas.height - bottom - 18 * ratio;
+    context.strokeStyle = "#2d3c31";
+    context.fillStyle = "#2d3c31";
+    context.lineWidth = 2 * ratio;
+    context.beginPath();
+    context.moveTo(scaleX, scaleY);
+    context.lineTo(scaleX + scale, scaleY);
+    context.moveTo(scaleX, scaleY - 5 * ratio);
+    context.lineTo(scaleX, scaleY + 5 * ratio);
+    context.moveTo(scaleX + scale, scaleY - 5 * ratio);
+    context.lineTo(scaleX + scale, scaleY + 5 * ratio);
+    context.stroke();
+    context.font = `${10 * ratio}px ui-monospace`;
+    context.textAlign = "center";
+    context.fillText("1 metre", scaleX + scale / 2, scaleY - 8 * ratio);
+
+    const northX = canvas.width - left - 28 * ratio;
+    const northY = bottom + 46 * ratio;
+    context.fillStyle = "#20382a";
+    context.font = `700 ${11 * ratio}px ui-sans-serif`;
+    context.textAlign = "center";
+    context.fillText("N", northX, northY - 20 * ratio);
+    context.beginPath();
+    context.moveTo(northX, northY - 14 * ratio);
+    context.lineTo(northX - 7 * ratio, northY + 5 * ratio);
+    context.lineTo(northX, northY + 1 * ratio);
+    context.lineTo(northX + 7 * ratio, northY + 5 * ratio);
+    context.closePath();
+    context.fill();
+  }, [plan, selectedId, sun, zoom]);
+
+  useEffect(() => {
+    draw();
+    const observer = new ResizeObserver(draw);
+    if (canvasRef.current) observer.observe(canvasRef.current);
+    return () => observer.disconnect();
+  }, [draw]);
+
+  const hitTest = (point: { x: number; y: number }) => {
+    return [...plan.objects]
+      .reverse()
+      .find(
+        (item) =>
+          Math.hypot(item.x - point.x, item.y - point.y) <=
+          Math.max(0.35, item.canopy / 2),
+      );
+  };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="plot-canvas"
+      aria-label="Interactive scale map of plot 3P. Select and drag map objects to reposition them."
+      tabIndex={0}
+      onPointerDown={(event) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const point = localPoint(event, canvas, transformRef.current);
+        const hit = hitTest(point);
+        dragRef.current = hit?.id ?? null;
+        onSelect(hit?.id ?? null);
+        if (hit) canvas.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        const canvas = canvasRef.current;
+        if (!canvas || !dragRef.current) return;
+        const point = localPoint(event, canvas, transformRef.current);
+        onMove(
+          dragRef.current,
+          Math.round(point.x * 20) / 20,
+          Math.round(point.y * 20) / 20,
+        );
+      }}
+      onPointerUp={(event) => {
+        canvasRef.current?.releasePointerCapture(event.pointerId);
+        dragRef.current = null;
+      }}
+      onKeyDown={(event) => {
+        if (!selectedId) return;
+        const item = plan.objects.find((object) => object.id === selectedId);
+        if (!item) return;
+        const step = event.shiftKey ? 0.5 : 0.1;
+        const changes: Record<string, [number, number]> = {
+          ArrowLeft: [-step, 0],
+          ArrowRight: [step, 0],
+          ArrowUp: [0, step],
+          ArrowDown: [0, -step],
+        };
+        const change = changes[event.key];
+        if (change) {
+          event.preventDefault();
+          onMove(item.id, item.x + change[0], item.y + change[1]);
+        }
+      }}
+    />
+  );
+}
+
+export default function Home() {
+  const [plan, setPlan] = useState<PlanData>(DEFAULT_PLAN);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [date, setDate] = useState(todayMelbourne);
+  const [minutes, setMinutes] = useState(720);
+  const [zoom, setZoom] = useState(1);
+  const [playing, setPlaying] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [saveState, setSaveState] = useState<
+    "loading" | "saved" | "saving" | "offline" | "unsaved"
+  >("loading");
+  const [revision, setRevision] = useState(0);
+
+  const selected = plan.objects.find((item) => item.id === selectedId) ?? null;
+  const dateObject = useMemo(() => zonedDate(date, minutes), [date, minutes]);
+  const sun = useMemo(
+    () => solarPosition(dateObject, plan.latitude, plan.longitude),
+    [dateObject, plan.latitude, plan.longitude],
+  );
+  const daylight = useMemo(
+    () => daylightSummary(date, plan.latitude, plan.longitude),
+    [date, plan.latitude, plan.longitude],
+  );
+
+  const updatePlan = useCallback((next: PlanData | ((old: PlanData) => PlanData)) => {
+    setPlan(next);
+    setDirty(true);
+    setSaveState("unsaved");
+  }, []);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const payload = JSON.parse(stored) as {
+          data?: PlanData;
+          version?: number;
+        };
+        if (payload.data) setPlan(payload.data);
+        if (payload.version) setRevision(payload.version);
+      }
+      setSaveState("saved");
+    } catch {
+      setSaveState("offline");
+    } finally {
+      setLoaded(true);
+    }
+  }, []);
+
+  const save = useCallback(() => {
+    if (!loaded) return;
+    setSaveState("saving");
+    try {
+      const nextRevision = revision + 1;
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ data: plan, version: nextRevision }),
+      );
+      setRevision(nextRevision);
+      setDirty(false);
+      setSaveState("saved");
+    } catch {
+      setSaveState("offline");
+    }
+  }, [loaded, plan, revision]);
+
+  useEffect(() => {
+    if (!dirty || !loaded) return;
+    const timer = window.setTimeout(save, 900);
+    return () => window.clearTimeout(timer);
+  }, [dirty, loaded, plan, save]);
+
+  useEffect(() => {
+    if (!playing) return;
+    const timer = window.setInterval(() => {
+      setMinutes((current) => (current >= 1260 ? 300 : current + 15));
+    }, 450);
+    return () => window.clearInterval(timer);
+  }, [playing]);
+
+  const addObject = (kind: ObjectKind) => {
+    const defaults = KIND_DEFAULTS[kind];
+    const item: PlotObject = {
+      id: crypto.randomUUID(),
+      kind,
+      name: defaults.name,
+      x: 3.15,
+      y: 1.45,
+      height: defaults.height,
+      canopy: defaults.canopy,
+      color: defaults.color,
+    };
+    updatePlan((current) => ({
+      ...current,
+      objects: [...current.objects, item],
+    }));
+    setSelectedId(item.id);
+  };
+
+  const updateSelected = (changes: Partial<PlotObject>) => {
+    if (!selectedId) return;
+    updatePlan((current) => ({
+      ...current,
+      objects: current.objects.map((item) =>
+        item.id === selectedId ? { ...item, ...changes } : item,
+      ),
+    }));
+  };
+
+  const treeImpacts = plan.objects
+    .filter((item) => item.context && item.kind === "tree")
+    .filter((item) => shadowTouchesPolygon(item, sun, PLOT_3P));
+  const neighbourImpacts = plan.objects
+    .filter((item) => !item.context)
+    .filter(
+      (item) =>
+        shadowTouchesPolygon(item, sun, PLOT_3O) ||
+        shadowTouchesPolygon(item, sun, PLOT_3A),
+    );
+
+  const statusLabel = {
+    loading: "Loading saved plan…",
+    saving: "Saving…",
+    saved: revision ? `Saved on this device · revision ${revision}` : "Saved on this device",
+    offline: "Device save unavailable",
+    unsaved: "Changes queued",
+  }[saveState];
+
+  return (
+    <main>
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">CERES COMMUNITY GARDEN · MELBOURNE</p>
+          <h1>Plot 3P</h1>
+          <p className="subtitle">Living site plan & seasonal shade study</p>
+        </div>
+        <div className={`save-status ${saveState}`} aria-live="polite">
+          <span />
+          {statusLabel}
+        </div>
+      </header>
+
+      <section className="workspace">
+        <aside className="panel left-panel">
+          <div className="panel-section intro">
+            <span className="section-number">01</span>
+            <div>
+              <h2>Plan the plot</h2>
+              <p>Add an item, then drag it into position. The triangular plot, grid, and fence length are in metres.</p>
+            </div>
+          </div>
+
+          <div className="add-grid">
+            <button onClick={() => addObject("plant")}>
+              <span className="add-symbol plant-symbol">+</span>
+              Plant
+            </button>
+            <button onClick={() => addObject("tree")}>
+              <span className="add-symbol tree-symbol">+</span>
+              Tree
+            </button>
+            <button onClick={() => addObject("structure")}>
+              <span className="add-symbol structure-symbol">+</span>
+              Structure
+            </button>
+          </div>
+
+          <div className="object-list">
+            <div className="list-heading">
+              <h3>Map objects</h3>
+              <span>{plan.objects.length}</span>
+            </div>
+            {plan.objects.map((item) => (
+              <button
+                className={item.id === selectedId ? "object-row selected" : "object-row"}
+                key={item.id}
+                onClick={() => setSelectedId(item.id)}
+              >
+                <span
+                  className={`object-dot ${item.kind}`}
+                  style={{ background: item.color }}
+                />
+                <span>
+                  <strong>{item.name}</strong>
+                  <small>
+                    {item.context ? "Source-plan context" : item.kind} · {item.height.toFixed(1)} m high
+                  </small>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="source-note">
+            <strong>Fence edge</strong>
+            <p className="fence-note">
+              The 6.6 m diagonal hypotenuse is the perimeter fence and a usable support line for climbing vegetables.
+            </p>
+            <strong>Scale & source</strong>
+            <p>{plan.sourceNote}</p>
+          </div>
+        </aside>
+
+        <section className="map-card">
+          <div className="map-toolbar">
+            <div className="legend" aria-label="Map legend">
+              <span><i className="legend-plot" />Your plot</span>
+              <span><i className="legend-neighbour" />Neighbour plots</span>
+              <span><i className="legend-fence" />Climbing fence</span>
+            </div>
+            <div className="zoom-controls">
+              <button
+                aria-label="Zoom out"
+                onClick={() => setZoom((value) => Math.max(0.78, value - 0.1))}
+              >
+                −
+              </button>
+              <span>{Math.round(zoom * 100)}%</span>
+              <button
+                aria-label="Zoom in"
+                onClick={() => setZoom((value) => Math.min(1.35, value + 0.1))}
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <div className="canvas-wrap">
+            <PlotCanvas
+              plan={plan}
+              sun={sun}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onMove={(id, x, y) =>
+                updatePlan((current) => ({
+                  ...current,
+                  objects: current.objects.map((item) =>
+                    item.id === id ? { ...item, x, y } : item,
+                  ),
+                }))
+              }
+              zoom={zoom}
+            />
+            <div className="sun-chip">
+              <span className="sun-disc" />
+              <div>
+                <small>Sun position</small>
+                <strong>
+                  {sun.elevation > 0
+                    ? `${sun.elevation.toFixed(1)}° high · ${Math.round(sun.azimuth)}°`
+                    : "Below horizon"}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside className="panel right-panel">
+          <div className="panel-section">
+            <span className="section-number">02</span>
+            <div>
+              <h2>Sun & shade</h2>
+              <p>Move through a Melbourne day or jump between seasons.</p>
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="date">Date</label>
+            <input
+              id="date"
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+            />
+          </div>
+          <div className="preset-row">
+            <button onClick={() => setDate(todayMelbourne())}>Today</button>
+            <button onClick={() => setDate(`${date.slice(0, 4)}-12-21`)}>Summer</button>
+            <button onClick={() => setDate(`${date.slice(0, 4)}-06-21`)}>Winter</button>
+          </div>
+
+          <div className="time-control">
+            <div className="time-heading">
+              <label htmlFor="time">Local time</label>
+              <strong>{formatTime(minutes)}</strong>
+            </div>
+            <input
+              id="time"
+              type="range"
+              min="300"
+              max="1260"
+              step="5"
+              value={minutes}
+              onChange={(event) => setMinutes(Number(event.target.value))}
+            />
+            <div className="range-labels">
+              <span>5 am</span>
+              <span>Noon</span>
+              <span>9 pm</span>
+            </div>
+            <button className="play-button" onClick={() => setPlaying((value) => !value)}>
+              {playing ? "Pause day" : "Play through day"}
+            </button>
+          </div>
+
+          <div className="solar-stats">
+            <div><small>Sunrise</small><strong>{formatTime(daylight.sunrise)}</strong></div>
+            <div><small>Solar noon</small><strong>{formatTime(daylight.solarNoon)}</strong></div>
+            <div><small>Sunset</small><strong>{formatTime(daylight.sunset)}</strong></div>
+          </div>
+
+          <div className="impact-card">
+            <h3>Shade impact now</h3>
+            {sun.elevation <= 0 ? (
+              <p>Night-time: direct solar shadows are not shown.</p>
+            ) : treeImpacts.length || neighbourImpacts.length ? (
+              <>
+                {treeImpacts.length > 0 && (
+                  <p>
+                    <strong>{treeImpacts.length} northern {treeImpacts.length === 1 ? "tree" : "trees"}</strong>{" "}
+                    currently project shade onto 3P.
+                  </p>
+                )}
+                {neighbourImpacts.length > 0 && (
+                  <p>
+                    <strong>{neighbourImpacts.length} plot {neighbourImpacts.length === 1 ? "item" : "items"}</strong>{" "}
+                    currently project shade into 3O or 3A.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>No modelled objects project shade across a plot boundary at this time.</p>
+            )}
+          </div>
+
+          {selected ? (
+            <div className="inspector">
+              <div className="inspector-heading">
+                <div>
+                  <small>Selected</small>
+                  <h3>{selected.name}</h3>
+                </div>
+                {!selected.context && (
+                  <button
+                    className="delete-button"
+                    onClick={() => {
+                      updatePlan((current) => ({
+                        ...current,
+                        objects: current.objects.filter((item) => item.id !== selected.id),
+                      }));
+                      setSelectedId(null);
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <label>
+                Name
+                <input
+                  value={selected.name}
+                  onChange={(event) => updateSelected({ name: event.target.value })}
+                />
+              </label>
+              <div className="two-fields">
+                <label>
+                  Height (m)
+                  <input
+                    type="number"
+                    min="0"
+                    max="30"
+                    step="0.1"
+                    value={selected.height}
+                    onChange={(event) =>
+                      updateSelected({ height: Number(event.target.value) })
+                    }
+                  />
+                </label>
+                <label>
+                  Width (m)
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="15"
+                    step="0.1"
+                    value={selected.canopy}
+                    onChange={(event) =>
+                      updateSelected({ canopy: Number(event.target.value) })
+                    }
+                  />
+                </label>
+              </div>
+              <div className="position-readout">
+                <span>E {selected.x.toFixed(2)} m</span>
+                <span>N {selected.y.toFixed(2)} m</span>
+              </div>
+              {selected.context && (
+                <p className="assumption">
+                  Tree position is traced from the source plan; height and canopy are editable assumptions.
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="selection-prompt">
+              Select any plant, structure, or tree on the map to edit its dimensions.
+            </div>
+          )}
+
+          <details className="model-details">
+            <summary>Model assumptions</summary>
+            <p>
+              Solar position uses Melbourne local time at {Math.abs(plan.latitude).toFixed(4)}° S,{" "}
+              {plan.longitude.toFixed(4)}° E. Shadows assume level ground and vertical object height.
+              Tree shade is a projected canopy envelope, so foliage density is not simulated.
+            </p>
+          </details>
+
+          <div className="action-row">
+            <button className="save-button" onClick={save}>Save now</button>
+            <button
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(plan, null, 2)], {
+                  type: "application/json",
+                });
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement("a");
+                anchor.href = url;
+                anchor.download = "plot-3p-plan.json";
+                anchor.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Export plan
+            </button>
+          </div>
+        </aside>
+      </section>
+    </main>
+  );
+}

@@ -98,6 +98,9 @@ const DEFAULT_PLAN: PlanData = {
     accessPath: true,
     useFence: true,
     showShade: true,
+    showGrid: true,
+    snapToGrid: false,
+    gridSize: 0.25,
     filterByMonth: false,
     scenarioSeed: 0,
   },
@@ -824,20 +827,38 @@ function PlantingCanvas({
   sun,
   shadeMonth,
   showShade,
-  selectedId,
-  onSelect,
-  onMove,
+  selectedIds,
+  onSelectionChange,
+  onMoveMany,
+  onGestureStart,
 }: {
   plan: PlanData;
   sun: SolarPosition;
   shadeMonth: number;
   showShade: boolean;
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
-  onMove: (id: string, x: number, y: number) => void;
+  selectedIds: string[];
+  onSelectionChange: (ids: string[]) => void;
+  onMoveMany: (updates: { id: string; x: number; y: number }[]) => void;
+  onGestureStart: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const dragRef = useRef<string | null>(null);
+  const [selectionBox, setSelectionBox] = useState<{
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  } | null>(null);
+  const dragRef = useRef<
+    | {
+        kind: "plants";
+        pointerStart: { x: number; y: number };
+        positions: { id: string; x: number; y: number }[];
+      }
+    | {
+        kind: "marquee";
+        pointerStart: { x: number; y: number };
+        additive: boolean;
+      }
+    | null
+  >(null);
   const transformRef = useRef({
     left: 0,
     bottom: 0,
@@ -875,19 +896,24 @@ function PlantingCanvas({
     context.fillStyle = "#f4f0e5";
     context.fillRect(0, 0, canvas.width, canvas.height);
 
-    context.strokeStyle = "rgba(47, 67, 50, .10)";
-    context.lineWidth = 1;
-    for (let metre = -1.25; metre <= 6.75; metre += 0.25) {
-      const [verticalX] = world(metre, 0);
-      const [, horizontalY] = world(0, metre);
-      context.beginPath();
-      context.moveTo(verticalX, world(0, minY)[1]);
-      context.lineTo(verticalX, world(0, 5.1)[1]);
-      context.stroke();
-      context.beginPath();
-      context.moveTo(world(minX, 0)[0], horizontalY);
-      context.lineTo(world(6.7, 0)[0], horizontalY);
-      context.stroke();
+    if (plan.plannerSettings.showGrid) {
+      for (let metre = -1.25; metre <= 6.75; metre += 0.25) {
+        const major = Math.abs(metre - Math.round(metre)) < 0.01;
+        context.strokeStyle = major
+          ? "rgba(47, 67, 50, .17)"
+          : "rgba(47, 67, 50, .075)";
+        context.lineWidth = major ? 1.2 * ratio : 0.7 * ratio;
+        const [verticalX] = world(metre, 0);
+        const [, horizontalY] = world(0, metre);
+        context.beginPath();
+        context.moveTo(verticalX, world(0, minY)[1]);
+        context.lineTo(verticalX, world(0, 5.1)[1]);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(world(minX, 0)[0], horizontalY);
+        context.lineTo(world(6.7, 0)[0], horizontalY);
+        context.stroke();
+      }
     }
 
     const drawContextPolygon = (
@@ -1003,10 +1029,9 @@ function PlantingCanvas({
       context.fillStyle =
         placement.status === "planted" ? crop.color : `${crop.color}b8`;
       context.fill();
-      context.strokeStyle =
-        placement.id === selectedId ? "#d85f38" : `${crop.color}`;
-      context.lineWidth =
-        placement.id === selectedId ? 3 * ratio : 1.4 * ratio;
+      const isSelected = selectedIds.includes(placement.id);
+      context.strokeStyle = isSelected ? "#d85f38" : `${crop.color}`;
+      context.lineWidth = isSelected ? 3 * ratio : 1.4 * ratio;
       if (placement.interplantedWith) {
         context.setLineDash([3 * ratio, 3 * ratio]);
       }
@@ -1034,6 +1059,19 @@ function PlantingCanvas({
       context.textBaseline = "middle";
       context.fillText(crop.short, x, y);
     });
+
+    if (selectionBox) {
+      const [startX, startY] = world(selectionBox.start.x, selectionBox.start.y);
+      const [endX, endY] = world(selectionBox.end.x, selectionBox.end.y);
+      context.save();
+      context.fillStyle = "rgba(216, 95, 56, .11)";
+      context.strokeStyle = "#d85f38";
+      context.lineWidth = 1.5 * ratio;
+      context.setLineDash([5 * ratio, 4 * ratio]);
+      context.fillRect(startX, startY, endX - startX, endY - startY);
+      context.strokeRect(startX, startY, endX - startX, endY - startY);
+      context.restore();
+    }
 
     context.font = `700 ${9 * ratio}px ui-sans-serif`;
     context.textAlign = "center";
@@ -1079,7 +1117,7 @@ function PlantingCanvas({
     context.fillStyle = "#2d3c31";
     context.font = `${9 * ratio}px ui-monospace`;
     context.fillText("1 m", scaleX + scale / 2, scaleY - 10 * ratio);
-  }, [plan, selectedId, shadeMonth, showShade, sun]);
+  }, [plan, selectedIds, selectionBox, shadeMonth, showShade, sun]);
 
   useEffect(() => {
     draw();
@@ -1121,26 +1159,103 @@ function PlantingCanvas({
       onPointerDown={(event) => {
         const point = pointFromEvent(event);
         const hit = hitTest(point);
-        dragRef.current = hit && !hit.locked ? hit.id : null;
-        onSelect(hit?.id ?? null);
-        if (hit && !hit.locked) {
+        if (hit) {
+          if (event.shiftKey) {
+            onSelectionChange(
+              selectedIds.includes(hit.id)
+                ? selectedIds.filter((id) => id !== hit.id)
+                : [...selectedIds, hit.id],
+            );
+            return;
+          }
+          const nextSelection = selectedIds.includes(hit.id)
+            ? selectedIds
+            : [hit.id];
+          onSelectionChange(nextSelection);
+          const positions = plan.placements
+            .filter(
+              (placement) =>
+                nextSelection.includes(placement.id) && !placement.locked,
+            )
+            .map(({ id, x, y }) => ({ id, x, y }));
+          if (positions.length) {
+            onGestureStart();
+            dragRef.current = {
+              kind: "plants",
+              pointerStart: point,
+              positions,
+            };
+            canvasRef.current?.setPointerCapture(event.pointerId);
+          }
+        } else {
+          if (!event.shiftKey) onSelectionChange([]);
+          dragRef.current = {
+            kind: "marquee",
+            pointerStart: point,
+            additive: event.shiftKey,
+          };
+          setSelectionBox({ start: point, end: point });
           canvasRef.current?.setPointerCapture(event.pointerId);
         }
       }}
       onPointerMove={(event) => {
-        if (!dragRef.current) return;
+        const drag = dragRef.current;
+        if (!drag) return;
         const point = pointFromEvent(event);
-        const snappedX = Math.round(point.x * 20) / 20;
-        const snappedY = Math.round(point.y * 20) / 20;
-        if (pointInPolygon([snappedX, snappedY], PLOT_3P)) {
-          onMove(dragRef.current, snappedX, snappedY);
+        if (drag.kind === "marquee") {
+          setSelectionBox({ start: drag.pointerStart, end: point });
+          return;
+        }
+        const snap = plan.plannerSettings.snapToGrid
+          ? plan.plannerSettings.gridSize
+          : 0.05;
+        const dx =
+          Math.round((point.x - drag.pointerStart.x) / snap) * snap;
+        const dy =
+          Math.round((point.y - drag.pointerStart.y) / snap) * snap;
+        const updates = drag.positions.map((position) => ({
+          id: position.id,
+          x: Math.round((position.x + dx) * 100) / 100,
+          y: Math.round((position.y + dy) * 100) / 100,
+        }));
+        if (
+          updates.every((update) =>
+            pointInPolygon([update.x, update.y], PLOT_3P),
+          )
+        ) {
+          onMoveMany(updates);
         }
       }}
       onPointerUp={(event) => {
-        if (dragRef.current) {
+        const drag = dragRef.current;
+        if (drag?.kind === "marquee" && selectionBox) {
+          const minX = Math.min(selectionBox.start.x, selectionBox.end.x);
+          const maxX = Math.max(selectionBox.start.x, selectionBox.end.x);
+          const minY = Math.min(selectionBox.start.y, selectionBox.end.y);
+          const maxY = Math.max(selectionBox.start.y, selectionBox.end.y);
+          const inside = plan.placements
+            .filter(
+              (placement) =>
+                placement.x >= minX &&
+                placement.x <= maxX &&
+                placement.y >= minY &&
+                placement.y <= maxY,
+            )
+            .map((placement) => placement.id);
+          onSelectionChange(
+            drag.additive ? Array.from(new Set([...selectedIds, ...inside])) : inside,
+          );
+        }
+        if (drag) {
           canvasRef.current?.releasePointerCapture(event.pointerId);
         }
         dragRef.current = null;
+        setSelectionBox(null);
+      }}
+      onPointerCancel={(event) => {
+        canvasRef.current?.releasePointerCapture(event.pointerId);
+        dragRef.current = null;
+        setSelectionBox(null);
       }}
     />
   );
@@ -1150,9 +1265,7 @@ export default function Home() {
   const [plan, setPlan] = useState<PlanData>(DEFAULT_PLAN);
   const [view, setView] = useState<"site" | "planting">("planting");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(
-    null,
-  );
+  const [selectedPlacementIds, setSelectedPlacementIds] = useState<string[]>([]);
   const [cropSearch, setCropSearch] = useState("");
   const [date, setDate] = useState(todayMelbourne);
   const [minutes, setMinutes] = useState(720);
@@ -1165,10 +1278,16 @@ export default function Home() {
   >("loading");
   const [revision, setRevision] = useState(0);
   const importRef = useRef<HTMLInputElement>(null);
+  const planRef = useRef<PlanData>(DEFAULT_PLAN);
+  const undoStackRef = useRef<PlanData[]>([]);
+  const [undoDepth, setUndoDepth] = useState(0);
 
   const selected = plan.objects.find((item) => item.id === selectedId) ?? null;
+  const selectedPlacements = plan.placements.filter((item) =>
+    selectedPlacementIds.includes(item.id),
+  );
   const selectedPlacement =
-    plan.placements.find((item) => item.id === selectedPlacementId) ?? null;
+    selectedPlacements.length === 1 ? selectedPlacements[0] : null;
   const dateObject = useMemo(() => zonedDate(date, minutes), [date, minutes]);
   const sun = useMemo(
     () => solarPosition(dateObject, plan.latitude, plan.longitude),
@@ -1187,8 +1306,45 @@ export default function Home() {
     };
   }, [date, plan.placements, sun]);
 
-  const updatePlan = useCallback((next: PlanData | ((old: PlanData) => PlanData)) => {
-    setPlan(next);
+  const pushUndo = useCallback(() => {
+    undoStackRef.current = [
+      ...undoStackRef.current.slice(-39),
+      planRef.current,
+    ];
+    setUndoDepth(undoStackRef.current.length);
+  }, []);
+
+  const updatePlan = useCallback((
+    next: PlanData | ((old: PlanData) => PlanData),
+    recordHistory = true,
+  ) => {
+    const current = planRef.current;
+    const resolved =
+      typeof next === "function" ? next(current) : next;
+    if (resolved === current) return;
+    if (recordHistory) {
+      undoStackRef.current = [
+        ...undoStackRef.current.slice(-39),
+        current,
+      ];
+      setUndoDepth(undoStackRef.current.length);
+    }
+    planRef.current = resolved;
+    setPlan(resolved);
+    setDirty(true);
+    setSaveState("unsaved");
+  }, []);
+
+  const undo = useCallback(() => {
+    const previous = undoStackRef.current.at(-1);
+    if (!previous) return;
+    undoStackRef.current = undoStackRef.current.slice(0, -1);
+    planRef.current = previous;
+    setPlan(previous);
+    setUndoDepth(undoStackRef.current.length);
+    setSelectedPlacementIds((ids) =>
+      ids.filter((id) => previous.placements.some((item) => item.id === id)),
+    );
     setDirty(true);
     setSaveState("unsaved");
   }, []);
@@ -1203,7 +1359,11 @@ export default function Home() {
           data?: Partial<PlanData>;
           version?: number;
         };
-        if (payload.data) setPlan(normalisePlan(payload.data));
+        if (payload.data) {
+          const restored = normalisePlan(payload.data);
+          planRef.current = restored;
+          setPlan(restored);
+        }
         if (payload.version) setRevision(payload.version);
       }
       setSaveState("saved");
@@ -1306,15 +1466,20 @@ export default function Home() {
     }));
   };
 
-  const generatePlantingPlan = () => {
+  const generatePlantingPlan = (scope: "whole" | "selection" = "whole") => {
     const year = Number(date.slice(0, 4)) || new Date().getFullYear();
     const cache = new Map<string, number>();
     const scenarioSettings = {
       ...plan.plannerSettings,
       scenarioSeed: plan.plannerSettings.scenarioSeed + 1,
     };
-    const fixedPlacements = plan.placements.filter(
-      (placement) => placement.locked || placement.status === "planted",
+    const selectedSet = new Set(selectedPlacementIds);
+    const fixedPlacements = plan.placements.filter((placement) =>
+      scope === "selection"
+        ? !selectedSet.has(placement.id) ||
+          placement.locked ||
+          placement.status === "planted"
+        : placement.locked || placement.status === "planted",
     );
     const result = generateLayout(
       plan.plantingRequests,
@@ -1386,7 +1551,136 @@ export default function Home() {
           : "All requested plants fit the current spacing and access rules.",
       ],
     }));
-    setSelectedPlacementId(null);
+    setSelectedPlacementIds([]);
+  };
+
+  const arrangeSelection = (mode: "row" | "block") => {
+    const movable = selectedPlacements.filter((placement) => !placement.locked);
+    if (movable.length < 2) return;
+    const densityFactor =
+      plan.plannerSettings.density === "intensive" ? 0.8 : 1;
+    const pitch =
+      Math.max(
+        ...movable.map(
+          (placement) => CROP_BY_ID[placement.cropId].spacing * densityFactor,
+        ),
+      );
+    const centre = movable.reduce(
+      (sum, placement) => ({
+        x: sum.x + placement.x / movable.length,
+        y: sum.y + placement.y / movable.length,
+      }),
+      { x: 0, y: 0 },
+    );
+    const buildPattern = (vertical = false) => {
+      if (mode === "row") {
+        return movable.map((placement, index) => {
+          const offset = (index - (movable.length - 1) / 2) * pitch;
+          return {
+            id: placement.id,
+            x: centre.x + (vertical ? 0 : offset),
+            y: centre.y + (vertical ? offset : 0),
+          };
+        });
+      }
+      const columns = Math.ceil(Math.sqrt(movable.length));
+      const rows = Math.ceil(movable.length / columns);
+      return movable.map((placement, index) => ({
+        id: placement.id,
+        x: centre.x + (index % columns - (columns - 1) / 2) * pitch,
+        y:
+          centre.y +
+          (Math.floor(index / columns) - (rows - 1) / 2) * pitch,
+      }));
+    };
+    const unselected = plan.placements.filter(
+      (placement) => !selectedPlacementIds.includes(placement.id),
+    );
+    const isValid = (
+      updates: { id: string; x: number; y: number }[],
+    ) =>
+      updates.every((update) => {
+        if (!pointInPolygon([update.x, update.y], PLOT_3P)) return false;
+        const placement = movable.find((item) => item.id === update.id);
+        if (!placement) return false;
+        const ownSpacing =
+          CROP_BY_ID[placement.cropId].spacing * densityFactor;
+        return unselected.every((other) => {
+          const otherSpacing =
+            CROP_BY_ID[other.cropId].spacing * densityFactor;
+          return (
+            Math.hypot(update.x - other.x, update.y - other.y) >=
+            (ownSpacing + otherSpacing) / 2
+          );
+        });
+      });
+    const offsets: [number, number][] = [[0, 0]];
+    for (let distance = 0.25; distance <= 2; distance += 0.25) {
+      offsets.push(
+        [distance, 0],
+        [-distance, 0],
+        [0, distance],
+        [0, -distance],
+        [distance, distance],
+        [-distance, distance],
+      );
+    }
+    const patterns =
+      mode === "row" ? [buildPattern(false), buildPattern(true)] : [buildPattern()];
+    let fitted: { id: string; x: number; y: number }[] | null = null;
+    for (const pattern of patterns) {
+      for (const [dx, dy] of offsets) {
+        const candidate = pattern.map((point) => ({
+          ...point,
+          x: Math.round((point.x + dx) * 100) / 100,
+          y: Math.round((point.y + dy) * 100) / 100,
+        }));
+        if (isValid(candidate)) {
+          fitted = candidate;
+          break;
+        }
+      }
+      if (fitted) break;
+    }
+    if (!fitted) {
+      updatePlan((current) => ({
+        ...current,
+        layoutNotes: [
+          `The selected plants could not form a spacing-safe ${mode} in the available area.`,
+          ...current.layoutNotes,
+        ],
+      }));
+      return;
+    }
+    const updates = new Map(fitted.map((point) => [point.id, point]));
+    updatePlan((current) => ({
+      ...current,
+      placements: current.placements.map((placement) =>
+        updates.has(placement.id)
+          ? { ...placement, ...updates.get(placement.id)! }
+          : placement,
+      ),
+    }));
+  };
+
+  const snapSelectionToGrid = () => {
+    const size = plan.plannerSettings.gridSize;
+    updatePlan((current) => ({
+      ...current,
+      placements: current.placements.map((placement) => {
+        if (
+          !selectedPlacementIds.includes(placement.id) ||
+          placement.locked
+        ) {
+          return placement;
+        }
+        const x = Math.round(placement.x / size) * size;
+        const y = Math.round(placement.y / size) * size;
+        return pointInPolygon([x, y], PLOT_3P)
+          ? { ...placement, x, y }
+          : placement;
+      }),
+    }));
   };
 
   const exportPlan = () => {
@@ -1406,7 +1700,7 @@ export default function Home() {
     const decoded = JSON.parse(await file.text()) as Partial<PlanData>;
     updatePlan(normalisePlan(decoded));
     setSelectedId(null);
-    setSelectedPlacementId(null);
+    setSelectedPlacementIds([]);
   };
 
   const monthNames = [
@@ -1897,6 +2191,9 @@ export default function Home() {
               </div>
             </div>
             <div className="planting-shade-controls">
+              <button disabled={undoDepth === 0} onClick={undo}>
+                ↶ Undo{undoDepth ? ` (${undoDepth})` : ""}
+              </button>
               <label className="shade-toggle">
                 <input
                   type="checkbox"
@@ -1955,22 +2252,59 @@ export default function Home() {
                   : "Sun below horizon"}
               </span>
             </div>
+            <div className="layout-edit-controls">
+              <span>
+                {selectedPlacements.length
+                  ? `${selectedPlacements.length} selected`
+                  : "Drag a box to select plants · Shift-click to add"}
+              </span>
+              <button
+                disabled={selectedPlacements.length < 2}
+                onClick={() => arrangeSelection("row")}
+              >
+                Place in row
+              </button>
+              <button
+                disabled={selectedPlacements.length < 2}
+                onClick={() => arrangeSelection("block")}
+              >
+                Form block
+              </button>
+              <button
+                disabled={selectedPlacements.length === 0}
+                onClick={snapSelectionToGrid}
+              >
+                Snap selection
+              </button>
+              <button
+                disabled={selectedPlacements.length === 0}
+                onClick={() => generatePlantingPlan("selection")}
+              >
+                Optimise selection
+              </button>
+            </div>
             <div className="planting-canvas-wrap">
               <PlantingCanvas
                 plan={plan}
                 sun={sun}
                 shadeMonth={Number(date.slice(5, 7)) || 1}
                 showShade={plan.plannerSettings.showShade}
-                selectedId={selectedPlacementId}
-                onSelect={setSelectedPlacementId}
-                onMove={(id, x, y) =>
+                selectedIds={selectedPlacementIds}
+                onSelectionChange={setSelectedPlacementIds}
+                onGestureStart={pushUndo}
+                onMoveMany={(updates) => {
+                  const updateMap = new Map(
+                    updates.map((update) => [update.id, update]),
+                  );
                   updatePlan((current) => ({
                     ...current,
                     placements: current.placements.map((placement) =>
-                      placement.id === id ? { ...placement, x, y } : placement,
+                      updateMap.has(placement.id)
+                        ? { ...placement, ...updateMap.get(placement.id)! }
+                        : placement,
                     ),
-                  }))
-                }
+                  }), false);
+                }}
               />
               {plan.plannerSettings.showShade && (
                 <div className="neighbour-shade-card">
@@ -2182,17 +2516,90 @@ export default function Home() {
                 />
                 Put climbers on fence
               </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={plan.plannerSettings.showGrid}
+                  onChange={(event) =>
+                    updatePlannerSettings({ showGrid: event.target.checked })
+                  }
+                />
+                Show 25 cm planning grid
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={plan.plannerSettings.snapToGrid}
+                  onChange={(event) =>
+                    updatePlannerSettings({
+                      snapToGrid: event.target.checked,
+                      showGrid: event.target.checked
+                        ? true
+                        : plan.plannerSettings.showGrid,
+                    })
+                  }
+                />
+                Snap dragging to grid
+              </label>
             </div>
 
             <button
               className="generate-button"
               disabled={plannedCount === 0}
-              onClick={generatePlantingPlan}
+              onClick={() => generatePlantingPlan("whole")}
             >
               {plan.placements.length
-                ? "Remodel unlocked proposals"
+                ? "Optimise whole patch"
                 : "Generate planting guide"}
             </button>
+
+            {selectedPlacements.length > 1 && (
+              <div className="placement-detail multi-selection-detail">
+                <div>
+                  <small>Group edit</small>
+                  <h3>{selectedPlacements.length} plants selected</h3>
+                </div>
+                <p>
+                  Group moves preserve the arrangement. Locked or planted
+                  plants stay in place during optimisation.
+                </p>
+                <div className="placement-commit-actions">
+                  <button
+                    onClick={() =>
+                      updatePlan((current) => ({
+                        ...current,
+                        placements: current.placements.map((placement) =>
+                          selectedPlacementIds.includes(placement.id) &&
+                          placement.status !== "planted"
+                            ? { ...placement, locked: !placement.locked }
+                            : placement,
+                        ),
+                      }))
+                    }
+                  >
+                    Toggle position locks
+                  </button>
+                  <button
+                    onClick={() =>
+                      updatePlan((current) => ({
+                        ...current,
+                        placements: current.placements.map((placement) =>
+                          selectedPlacementIds.includes(placement.id)
+                            ? {
+                                ...placement,
+                                status: "planted",
+                                locked: true,
+                              }
+                            : placement,
+                        ),
+                      }))
+                    }
+                  >
+                    Mark all planted
+                  </button>
+                </div>
+              </div>
+            )}
 
             {selectedPlacement ? (
               <div className="placement-detail">
@@ -2281,7 +2688,7 @@ export default function Home() {
                           placement.id !== selectedPlacement.id,
                       ),
                     }));
-                    setSelectedPlacementId(null);
+                    setSelectedPlacementIds([]);
                   }}
                 >
                   Remove this plant

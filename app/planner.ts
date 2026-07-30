@@ -56,6 +56,9 @@ export type PlannerSettings = {
   accessPath: boolean;
   useFence: boolean;
   showShade: boolean;
+  showGrid: boolean;
+  snapToGrid: boolean;
+  gridSize: number;
   filterByMonth: boolean;
   scenarioSeed: number;
 };

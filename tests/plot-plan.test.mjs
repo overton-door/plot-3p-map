@@ -44,7 +44,15 @@ test("ships the scaled Plot 3P editor and Melbourne solar controls", async () =>
   assert.match(planner, /sunlightFit \* 1_000_000/);
   assert.match(planner, /scenarioSeed/);
   assert.match(page, /Only show plants for this month/);
-  assert.match(page, /Remodel unlocked proposals/);
+  assert.match(page, /Optimise whole patch/);
+  assert.match(page, /Optimise selection/);
+  assert.match(page, /Place in row/);
+  assert.match(page, /Form block/);
+  assert.match(page, /Drag a box to select plants/);
+  assert.match(page, /Snap dragging to grid/);
+  assert.match(page, /↶ Undo/);
+  assert.match(planner, /showGrid: boolean/);
+  assert.match(planner, /snapToGrid: boolean/);
   assert.match(page, /Mark as planted/);
   assert.match(page, /Lock position/);
   assert.match(layout, /Plot 3P · Intelligent planting planner/);

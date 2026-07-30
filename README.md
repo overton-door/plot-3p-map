@@ -9,13 +9,9 @@ triangular allotment Plot 3P at CERES Community Garden in Melbourne, Australia.
 - 1 metre scale grid and a labelled 6.6 m climbing-fence edge
 - Correct immediate context: Plot 3O to the south and an access path to the east
 - Melbourne solar position and projected shade through the day and year
-- Toggleable planting-map shade overlay with partial 3O/3A context and neighbour-impact warnings
-- Melbourne vegetable, herb, and flower library with seasonal filters and mature spacing
+- Melbourne crop library with seasonal filters and mature spacing
 - Explainable automatic layouts balancing sun, access, height, supports, and space
 - Intensive spacing, interplanting, and draggable mature plant footprints
-- Perennial crops including asparagus, rhubarb, artichoke, strawberries, and perennial herbs
-- Planned/planted states, position locking, and repeatable remodelling around committed plants
-- Peak-season sunlight and shade optimisation with row/block preferences for small crops
 - Editable plants, trees, and structures
 - Automatic on-device saving plus JSON import/export
 

@@ -1552,9 +1552,9 @@ export default function Home() {
             <div className="panel-section intro">
               <span className="section-number">01</span>
               <div>
-                <h2>Choose vegetables</h2>
+                <h2>Choose vegetables & flowers</h2>
                 <p>
-                  The library filters to crops suited to sowing or planting in
+                  The library filters to plants suited to sowing or planting in
                   Melbourne in the selected month.
                 </p>
               </div>
@@ -1576,16 +1576,16 @@ export default function Home() {
               </select>
             </label>
             <label className="planner-field">
-              Find a crop
+              Find a plant
               <input
                 type="search"
                 value={cropSearch}
-                placeholder="e.g. tomato or leaf"
+                placeholder="e.g. tomato, flower or leaf"
                 onChange={(event) => setCropSearch(event.target.value)}
               />
             </label>
 
-            <div className="crop-library" aria-label="Vegetable library">
+            <div className="crop-library" aria-label="Vegetable and flower library">
               {filteredCrops.map((crop) => (
                 <button
                   className="crop-card"
@@ -1610,7 +1610,7 @@ export default function Home() {
               ))}
               {filteredCrops.length === 0 && (
                 <p className="empty-copy">
-                  No matching crops in this month. Try another month or a
+                  No matching plants in this month. Try another month or a
                   broader search.
                 </p>
               )}
@@ -1681,8 +1681,8 @@ export default function Home() {
             <div className="request-list">
               {plan.plantingRequests.length === 0 ? (
                 <div className="selection-prompt">
-                  Add vegetables from the library. Start with what you want to
-                  eat; the tool will tell you what fits.
+                  Add vegetables and flowers from the library. The tool will
+                  tell you what fits.
                 </div>
               ) : (
                 plan.plantingRequests.map((request) => {

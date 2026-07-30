@@ -5,7 +5,8 @@ export type CropGroup =
   | "root"
   | "brassica"
   | "legume"
-  | "herb";
+  | "herb"
+  | "flower";
 
 export type Crop = {
   id: string;
@@ -476,6 +477,60 @@ export const CROPS: Crop[] = [
     quick: true,
     frequent: true,
     color: "#62925a",
+  },
+  {
+    id: "dahlia",
+    name: "Dahlia",
+    short: "D",
+    group: "flower",
+    family: "Asteraceae",
+    spacing: 0.6,
+    height: 1.2,
+    sun: "full",
+    months: [9, 10, 11],
+    days: 110,
+    frequent: true,
+    color: "#b94f79",
+  },
+  {
+    id: "sunflower",
+    name: "Sunflower",
+    short: "Sf",
+    group: "flower",
+    family: "Asteraceae",
+    spacing: 0.45,
+    height: 2,
+    sun: "full",
+    months: [9, 10, 11, 12, 1],
+    days: 90,
+    color: "#d6a62d",
+  },
+  {
+    id: "zinnia",
+    name: "Zinnia",
+    short: "Zi",
+    group: "flower",
+    family: "Asteraceae",
+    spacing: 0.3,
+    height: 0.75,
+    sun: "full",
+    months: [10, 11, 12, 1],
+    days: 70,
+    frequent: true,
+    color: "#d85f6e",
+  },
+  {
+    id: "poppy",
+    name: "Poppy",
+    short: "Po",
+    group: "flower",
+    family: "Papaveraceae",
+    spacing: 0.25,
+    height: 0.65,
+    sun: "full",
+    months: [3, 4, 5, 6, 7, 8],
+    days: 90,
+    color: "#e26c45",
   },
 ];
 

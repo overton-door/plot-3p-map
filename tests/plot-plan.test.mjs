@@ -5,21 +5,27 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("ships the scaled Plot 3P editor and Melbourne solar controls", async () => {
-  const [page, layout] = await Promise.all([
+  const [page, planner, layout] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
+    readFile(new URL("app/planner.ts", root), "utf8"),
     readFile(new URL("app/layout.tsx", root), "utf8"),
   ]);
 
-  assert.match(page, /const PLOT_3P/);
+  assert.match(planner, /const PLOT_3P/);
   assert.match(page, /FENCE · 6\.6 m · CLIMBING SUPPORT/);
-  assert.match(page, /const PLOT_3O/);
-  assert.match(page, /const PLOT_3A/);
+  assert.match(planner, /const PLOT_3O/);
+  assert.match(planner, /const EAST_PATH/);
+  assert.match(planner, /PLOT_3A_BEYOND_PATH/);
   assert.match(page, /solarPosition/);
   assert.match(page, /Australia\/Melbourne/);
   assert.match(page, /Play through day/);
-  assert.match(page, /Export plan/);
-  assert.match(layout, /Plot 3P · Living site plan/);
-  assert.doesNotMatch(page + layout, /codex-preview|SkeletonPreview/);
+  assert.match(page, /Export JSON/);
+  assert.match(page, /Generate planting guide/);
+  assert.match(planner, /generateLayout/);
+  assert.match(planner, /interplant/);
+  assert.match(planner, /ACCESS_PADS/);
+  assert.match(layout, /Plot 3P · Intelligent planting planner/);
+  assert.doesNotMatch(page + planner + layout, /codex-preview|SkeletonPreview/);
 });
 
 test("supports static GitHub Pages export and on-device persistence", async () => {
@@ -28,8 +34,8 @@ test("supports static GitHub Pages export and on-device persistence", async () =
     readFile(new URL("app/page.tsx", root), "utf8"),
   ]);
 
-  assert.match(config, /output: "export"/);
+  assert.match(config, /output: isGitHubPages \? "export" : undefined/);
   assert.match(config, /plot-3p-map/);
   assert.match(page, /localStorage/);
-  assert.match(page, /plot-3p-plan-v1/);
+  assert.match(page, /plot-3p-plan-v2/);
 });

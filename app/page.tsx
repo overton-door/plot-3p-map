@@ -1,6 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ACCESSIBLE_BEDS,
+  ACCESS_PADS,
+  CROP_BY_ID,
+  CROPS,
+  EAST_PATH,
+  PLOT_3A_BEYOND_PATH,
+  PLOT_3O,
+  PLOT_3P,
+  generateLayout,
+  type PlannerSettings,
+  type PlantingPlacement,
+  type PlantingRequest,
+} from "./planner";
 
 type ObjectKind = "plant" | "tree" | "structure";
 
@@ -21,40 +35,16 @@ type PlanData = {
   latitude: number;
   longitude: number;
   sourceNote: string;
+  plantingRequests: PlantingRequest[];
+  placements: PlantingPlacement[];
+  plannerSettings: PlannerSettings;
+  layoutNotes: string[];
 };
 
 type SolarPosition = {
   elevation: number;
   azimuth: number;
 };
-
-const PLOT_3P: [number, number][] = [
-  [0, 0],
-  [4.25, 0],
-  [4.85, 4.55],
-];
-
-const PLOT_3O: [number, number][] = [
-  [0, -3.25],
-  [4.25, -3.25],
-  [4.25, 0],
-  [0, 0],
-];
-
-const PLOT_3A: [number, number][] = [
-  [4.25, 0],
-  [7.35, -0.05],
-  [7.55, 4.05],
-  [4.85, 4.55],
-];
-
-const ACCESSIBLE_BEDS: [number, number][] = [
-  [4.95, 4.95],
-  [5.75, 5.55],
-  [8.7, 5.15],
-  [8.85, 4.4],
-  [5.9, 4.55],
-];
 
 const CONTEXT_TREES: PlotObject[] = [
   {
@@ -97,10 +87,20 @@ const DEFAULT_PLAN: PlanData = {
   latitude: -37.766,
   longitude: 144.983,
   sourceNote:
-    "Triangular Plot 3P Half and nearby context traced from Community Garden Layout 6.2026 (1:250 @ A3). Its 6.6 m diagonal edge is the perimeter fence; tree heights are editable assumptions.",
+    "Triangular Plot 3P Half re-measured from Community Garden Layout 6.2026. Its 6.6 m diagonal edge is the perimeter fence, its east side abuts an approximately 0.8 m access path, and tree heights remain editable assumptions.",
+  plantingRequests: [],
+  placements: [],
+  plannerSettings: {
+    month: new Date().getMonth() + 1,
+    density: "intensive",
+    interplant: true,
+    accessPath: true,
+    useFence: true,
+  },
+  layoutNotes: [],
 };
 
-const STORAGE_KEY = "plot-3p-plan-v1";
+const STORAGE_KEY = "plot-3p-plan-v2";
 
 const KIND_DEFAULTS: Record<
   ObjectKind,
@@ -306,6 +306,93 @@ function shadowTouchesPolygon(
   return false;
 }
 
+function pointToSegmentDistance(
+  point: [number, number],
+  start: [number, number],
+  end: [number, number],
+) {
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const lengthSquared = dx * dx + dy * dy;
+  const ratio = Math.max(
+    0,
+    Math.min(
+      1,
+      ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) /
+        (lengthSquared || 1),
+    ),
+  );
+  return Math.hypot(
+    point[0] - (start[0] + ratio * dx),
+    point[1] - (start[1] + ratio * dy),
+  );
+}
+
+function pointIsShaded(
+  x: number,
+  y: number,
+  sun: SolarPosition,
+  objects: PlotObject[],
+) {
+  if (sun.elevation <= 0.3) return true;
+  return objects.some((item) => {
+    if (item.height <= 0) return false;
+    const shadow = shadowVector(item, sun);
+    return (
+      pointToSegmentDistance(
+        [x, y],
+        [item.x, item.y],
+        [item.x + shadow.dx, item.y + shadow.dy],
+      ) <=
+      item.canopy / 2
+    );
+  });
+}
+
+function estimateSunHours(
+  dateString: string,
+  x: number,
+  y: number,
+  plan: PlanData,
+) {
+  let hours = 0;
+  for (let minute = 330; minute <= 1260; minute += 30) {
+    const sample = solarPosition(
+      zonedDate(dateString, minute),
+      plan.latitude,
+      plan.longitude,
+    );
+    if (
+      sample.elevation > 0.3 &&
+      !pointIsShaded(
+        x,
+        y,
+        sample,
+        plan.objects.filter((item) => item.context),
+      )
+    ) {
+      hours += 0.5;
+    }
+  }
+  return hours;
+}
+
+function normalisePlan(value: Partial<PlanData> | undefined): PlanData {
+  if (!value) return DEFAULT_PLAN;
+  return {
+    ...DEFAULT_PLAN,
+    ...value,
+    objects: value.objects?.length ? value.objects : DEFAULT_PLAN.objects,
+    plantingRequests: value.plantingRequests ?? [],
+    placements: value.placements ?? [],
+    plannerSettings: {
+      ...DEFAULT_PLAN.plannerSettings,
+      ...(value.plannerSettings ?? {}),
+    },
+    layoutNotes: value.layoutNotes ?? [],
+  };
+}
+
 function localPoint(
   event: React.PointerEvent<HTMLCanvasElement>,
   canvas: HTMLCanvasElement,
@@ -427,14 +514,15 @@ function PlotCanvas({
     context.fillText("VILLAGE LANEWAY", laneX, laneY);
 
     drawPolygon(PLOT_3O, "#e1d6b6", "#9d9278", 1.4);
-    drawPolygon(PLOT_3A, "#e9e1ca", "#aaa086", 1.4);
+    drawPolygon(PLOT_3A_BEYOND_PATH, "#e9e1ca", "#aaa086", 1.2);
+    drawPolygon(EAST_PATH, "#d8d5cc", "#aaa79f", 1.2);
     drawPolygon(ACCESSIBLE_BEDS, "#a7cd83", "#66815b", 1.4);
     drawPolygon(PLOT_3P, "#8dcc78", "#325c40", 2.4);
 
     const labels: Array<[string, number, number, string]> = [
       ["PLOT 3P · HALF", 3.25, 1.45, "#173c28"],
       ["3O · HALF", 2.15, -1.65, "#756b54"],
-      ["3A · HALF", 6.05, 1.9, "#756b54"],
+      ["3A · HALF", 6.45, 1.9, "#756b54"],
       ["ACCESSIBLE BEDS", 6.8, 4.95, "#43623e"],
       ["COMMUNITY HUB", -2.15, 2.75, "#7b776c"],
     ];
@@ -445,6 +533,15 @@ function PlotCanvas({
       context.fillStyle = color;
       context.fillText(label, screenX, screenY);
     });
+    const [pathLabelX, pathLabelY] = world(4.93, 2.25);
+    context.save();
+    context.translate(pathLabelX, pathLabelY);
+    context.rotate(-Math.atan2(4.55, 0.6));
+    context.fillStyle = "#77766f";
+    context.font = `700 ${8.5 * ratio}px ui-sans-serif`;
+    context.textAlign = "center";
+    context.fillText("ACCESS PATH · ~0.8 m", 0, 0);
+    context.restore();
 
     const [fenceStartX, fenceStartY] = world(0, 0);
     const [fenceEndX, fenceEndY] = world(4.85, 4.55);
@@ -657,9 +754,235 @@ function PlotCanvas({
   );
 }
 
+function PlantingCanvas({
+  plan,
+  selectedId,
+  onSelect,
+  onMove,
+}: {
+  plan: PlanData;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onMove: (id: string, x: number, y: number) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const dragRef = useRef<string | null>(null);
+  const transformRef = useRef({ left: 0, bottom: 0, scale: 1 });
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    const rect = canvas.getBoundingClientRect();
+    const ratio = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.max(680, rect.width * ratio);
+    canvas.height = Math.max(620, rect.height * ratio);
+    const scale = Math.min(
+      (canvas.width - 90 * ratio) / 6.2,
+      (canvas.height - 90 * ratio) / 5.35,
+    );
+    const left = (canvas.width - 6.2 * scale) / 2;
+    const bottom = (canvas.height - 5.35 * scale) / 2;
+    transformRef.current = { left, bottom, scale };
+    const world = (x: number, y: number): [number, number] => [
+      left + (x + 0.45) * scale,
+      canvas.height - bottom - (y + 0.35) * scale,
+    ];
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#f4f0e5";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.strokeStyle = "rgba(47, 67, 50, .10)";
+    context.lineWidth = 1;
+    for (let metre = 0; metre <= 5; metre += 0.25) {
+      const [verticalX] = world(metre, 0);
+      const [, horizontalY] = world(0, metre);
+      context.beginPath();
+      context.moveTo(verticalX, world(0, -0.05)[1]);
+      context.lineTo(verticalX, world(0, 4.75)[1]);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(world(-0.05, 0)[0], horizontalY);
+      context.lineTo(world(5.75, 0)[0], horizontalY);
+      context.stroke();
+    }
+
+    context.beginPath();
+    polygonPath(context, EAST_PATH, world);
+    context.fillStyle = "#d8d5cc";
+    context.fill();
+    context.strokeStyle = "#aaa79f";
+    context.lineWidth = 1.2 * ratio;
+    context.stroke();
+
+    context.beginPath();
+    polygonPath(context, PLOT_3P, world);
+    context.fillStyle = "#e8e4d7";
+    context.fill();
+    context.strokeStyle = "#315c40";
+    context.lineWidth = 2.6 * ratio;
+    context.stroke();
+
+    if (plan.plannerSettings.accessPath) {
+      ACCESS_PADS.forEach(([x, y], index) => {
+        const [screenX, screenY] = world(x, y);
+        context.beginPath();
+        context.arc(screenX, screenY, 0.21 * scale, 0, Math.PI * 2);
+        context.fillStyle = index % 2 ? "#cbc4b5" : "#d5cebe";
+        context.fill();
+        context.strokeStyle = "#989082";
+        context.lineWidth = ratio;
+        context.stroke();
+      });
+    }
+
+    const [fenceStartX, fenceStartY] = world(...PLOT_3P[0]);
+    const [fenceEndX, fenceEndY] = world(...PLOT_3P[2]);
+    context.strokeStyle = "#18281d";
+    context.lineWidth = 5 * ratio;
+    context.lineCap = "round";
+    context.setLineDash([2 * ratio, 7 * ratio]);
+    context.beginPath();
+    context.moveTo(fenceStartX, fenceStartY);
+    context.lineTo(fenceEndX, fenceEndY);
+    context.stroke();
+    context.setLineDash([]);
+
+    plan.placements.forEach((placement) => {
+      const crop = CROP_BY_ID[placement.cropId];
+      if (!crop) return;
+      const [x, y] = world(placement.x, placement.y);
+      const radius = Math.max(8 * ratio, (crop.spacing * scale) / 2);
+      context.beginPath();
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fillStyle = `${crop.color}d9`;
+      context.fill();
+      context.strokeStyle =
+        placement.id === selectedId ? "#d85f38" : `${crop.color}`;
+      context.lineWidth =
+        placement.id === selectedId ? 3 * ratio : 1.4 * ratio;
+      if (placement.interplantedWith) {
+        context.setLineDash([3 * ratio, 3 * ratio]);
+      }
+      context.stroke();
+      context.setLineDash([]);
+      context.fillStyle = "#fffdf7";
+      context.font = `700 ${Math.max(8, Math.min(11, radius / ratio)) * ratio}px ui-sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(crop.short, x, y);
+    });
+
+    const [northX, northY] = world(5.35, 4.3);
+    context.fillStyle = "#20382a";
+    context.font = `700 ${11 * ratio}px ui-sans-serif`;
+    context.textAlign = "center";
+    context.fillText("N", northX, northY - 18 * ratio);
+    context.beginPath();
+    context.moveTo(northX, northY - 12 * ratio);
+    context.lineTo(northX - 7 * ratio, northY + 6 * ratio);
+    context.lineTo(northX, northY + 2 * ratio);
+    context.lineTo(northX + 7 * ratio, northY + 6 * ratio);
+    context.closePath();
+    context.fill();
+
+    const [pathX, pathY] = world(5.15, 2.15);
+    context.save();
+    context.translate(pathX, pathY);
+    context.rotate(-Math.atan2(4.55, 0.6));
+    context.fillStyle = "#77766f";
+    context.font = `700 ${9 * ratio}px ui-sans-serif`;
+    context.fillText("EXISTING ACCESS PATH", 0, 0);
+    context.restore();
+
+    const [scaleX, scaleY] = world(0.2, 0.2);
+    context.strokeStyle = "#2d3c31";
+    context.lineWidth = 2 * ratio;
+    context.beginPath();
+    context.moveTo(scaleX, scaleY);
+    context.lineTo(scaleX + scale, scaleY);
+    context.moveTo(scaleX, scaleY - 5 * ratio);
+    context.lineTo(scaleX, scaleY + 5 * ratio);
+    context.moveTo(scaleX + scale, scaleY - 5 * ratio);
+    context.lineTo(scaleX + scale, scaleY + 5 * ratio);
+    context.stroke();
+    context.fillStyle = "#2d3c31";
+    context.font = `${9 * ratio}px ui-monospace`;
+    context.fillText("1 m", scaleX + scale / 2, scaleY - 10 * ratio);
+  }, [plan, selectedId]);
+
+  useEffect(() => {
+    draw();
+    const observer = new ResizeObserver(draw);
+    if (canvasRef.current) observer.observe(canvasRef.current);
+    return () => observer.disconnect();
+  }, [draw]);
+
+  const pointFromEvent = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const screenX = ((event.clientX - rect.left) * canvas.width) / rect.width;
+    const screenY = ((event.clientY - rect.top) * canvas.height) / rect.height;
+    const transform = transformRef.current;
+    return {
+      x: (screenX - transform.left) / transform.scale - 0.45,
+      y:
+        (canvas.height - transform.bottom - screenY) / transform.scale - 0.35,
+    };
+  };
+
+  const hitTest = (point: { x: number; y: number }) =>
+    [...plan.placements].reverse().find((placement) => {
+      const crop = CROP_BY_ID[placement.cropId];
+      return (
+        crop &&
+        Math.hypot(placement.x - point.x, placement.y - point.y) <=
+          Math.max(0.16, crop.spacing / 2)
+      );
+    });
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="planting-canvas"
+      aria-label="Detailed planting plan for Plot 3P. Mature crop circles are drawn to scale and can be dragged."
+      onPointerDown={(event) => {
+        const point = pointFromEvent(event);
+        const hit = hitTest(point);
+        dragRef.current = hit?.id ?? null;
+        onSelect(hit?.id ?? null);
+        if (hit) canvasRef.current?.setPointerCapture(event.pointerId);
+      }}
+      onPointerMove={(event) => {
+        if (!dragRef.current) return;
+        const point = pointFromEvent(event);
+        const snappedX = Math.round(point.x * 20) / 20;
+        const snappedY = Math.round(point.y * 20) / 20;
+        if (pointInPolygon([snappedX, snappedY], PLOT_3P)) {
+          onMove(dragRef.current, snappedX, snappedY);
+        }
+      }}
+      onPointerUp={(event) => {
+        if (dragRef.current) {
+          canvasRef.current?.releasePointerCapture(event.pointerId);
+        }
+        dragRef.current = null;
+      }}
+    />
+  );
+}
+
 export default function Home() {
   const [plan, setPlan] = useState<PlanData>(DEFAULT_PLAN);
+  const [view, setView] = useState<"site" | "planting">("planting");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedPlacementId, setSelectedPlacementId] = useState<string | null>(
+    null,
+  );
+  const [cropSearch, setCropSearch] = useState("");
   const [date, setDate] = useState(todayMelbourne);
   const [minutes, setMinutes] = useState(720);
   const [zoom, setZoom] = useState(1);
@@ -670,8 +993,11 @@ export default function Home() {
     "loading" | "saved" | "saving" | "offline" | "unsaved"
   >("loading");
   const [revision, setRevision] = useState(0);
+  const importRef = useRef<HTMLInputElement>(null);
 
   const selected = plan.objects.find((item) => item.id === selectedId) ?? null;
+  const selectedPlacement =
+    plan.placements.find((item) => item.id === selectedPlacementId) ?? null;
   const dateObject = useMemo(() => zonedDate(date, minutes), [date, minutes]);
   const sun = useMemo(
     () => solarPosition(dateObject, plan.latitude, plan.longitude),
@@ -690,13 +1016,15 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const stored =
+        window.localStorage.getItem(STORAGE_KEY) ??
+        window.localStorage.getItem("plot-3p-plan-v1");
       if (stored) {
         const payload = JSON.parse(stored) as {
-          data?: PlanData;
+          data?: Partial<PlanData>;
           version?: number;
         };
-        if (payload.data) setPlan(payload.data);
+        if (payload.data) setPlan(normalisePlan(payload.data));
         if (payload.version) setRevision(payload.version);
       }
       setSaveState("saved");
@@ -767,6 +1095,126 @@ export default function Home() {
     }));
   };
 
+  const updatePlannerSettings = (changes: Partial<PlannerSettings>) => {
+    updatePlan((current) => ({
+      ...current,
+      plannerSettings: { ...current.plannerSettings, ...changes },
+    }));
+  };
+
+  const addCropRequest = (cropId: string) => {
+    const existing = plan.plantingRequests.find(
+      (request) => request.cropId === cropId,
+    );
+    updatePlan((current) => ({
+      ...current,
+      plantingRequests: existing
+        ? current.plantingRequests.map((request) =>
+            request.id === existing.id
+              ? { ...request, quantity: request.quantity + 1 }
+              : request,
+          )
+        : [
+            ...current.plantingRequests,
+            {
+              id: crypto.randomUUID(),
+              cropId,
+              quantity: 1,
+              priority: "normal",
+            },
+          ],
+      placements: [],
+      layoutNotes: [],
+    }));
+  };
+
+  const generatePlantingPlan = () => {
+    const month = plan.plannerSettings.month;
+    const year = Number(date.slice(0, 4)) || new Date().getFullYear();
+    const planningDate = `${year}-${String(month).padStart(2, "0")}-15`;
+    const cache = new Map<string, number>();
+    const result = generateLayout(
+      plan.plantingRequests,
+      plan.plannerSettings,
+      (x, y) => {
+        const key = `${x.toFixed(2)}:${y.toFixed(2)}`;
+        if (!cache.has(key)) {
+          cache.set(key, estimateSunHours(planningDate, x, y, plan));
+        }
+        return cache.get(key) ?? 0;
+      },
+    );
+    const unplacedTotal = Object.values(result.unplaced).reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+    updatePlan((current) => ({
+      ...current,
+      placements: result.placements,
+      layoutNotes: [
+        ...result.notes,
+        unplacedTotal
+          ? `${unplacedTotal} requested plants did not fit while preserving spacing and access.`
+          : "All requested plants fit the current spacing and access rules.",
+      ],
+    }));
+    setSelectedPlacementId(null);
+  };
+
+  const exportPlan = () => {
+    const blob = new Blob([JSON.stringify(plan, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "plot-3p-plan.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importPlan = async (file: File | undefined) => {
+    if (!file) return;
+    const decoded = JSON.parse(await file.text()) as Partial<PlanData>;
+    updatePlan(normalisePlan(decoded));
+    setSelectedId(null);
+    setSelectedPlacementId(null);
+  };
+
+  const monthNames = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  const filteredCrops = CROPS.filter((crop) => {
+    const query = cropSearch.trim().toLowerCase();
+    return (
+      (!query ||
+        crop.name.toLowerCase().includes(query) ||
+        crop.group.includes(query)) &&
+      crop.months.includes(plan.plannerSettings.month)
+    );
+  });
+  const plannedCount = plan.plantingRequests.reduce(
+    (sum, request) => sum + request.quantity,
+    0,
+  );
+  const fittedCount = plan.placements.length;
+  const averageSun =
+    fittedCount > 0
+      ? plan.placements.reduce((sum, placement) => sum + placement.sunHours, 0) /
+        fittedCount
+      : 0;
+
   const treeImpacts = plan.objects
     .filter((item) => item.context && item.kind === "tree")
     .filter((item) => shadowTouchesPolygon(item, sun, PLOT_3P));
@@ -775,7 +1223,7 @@ export default function Home() {
     .filter(
       (item) =>
         shadowTouchesPolygon(item, sun, PLOT_3O) ||
-        shadowTouchesPolygon(item, sun, PLOT_3A),
+        shadowTouchesPolygon(item, sun, PLOT_3A_BEYOND_PATH),
     );
 
   const statusLabel = {
@@ -792,14 +1240,33 @@ export default function Home() {
         <div>
           <p className="eyebrow">CERES COMMUNITY GARDEN · MELBOURNE</p>
           <h1>Plot 3P</h1>
-          <p className="subtitle">Living site plan & seasonal shade study</p>
+          <p className="subtitle">
+            Scale site plan, seasonal shade model & intelligent planting planner
+          </p>
         </div>
-        <div className={`save-status ${saveState}`} aria-live="polite">
-          <span />
-          {statusLabel}
+        <div className="topbar-actions">
+          <nav className="view-switch" aria-label="Planning views">
+            <button
+              aria-pressed={view === "planting"}
+              onClick={() => setView("planting")}
+            >
+              Planting planner
+            </button>
+            <button
+              aria-pressed={view === "site"}
+              onClick={() => setView("site")}
+            >
+              Site & shade
+            </button>
+          </nav>
+          <div className={`save-status ${saveState}`} aria-live="polite">
+            <span />
+            {statusLabel}
+          </div>
         </div>
       </header>
 
+      {view === "site" ? (
       <section className="workspace">
         <aside className="panel left-panel">
           <div className="panel-section intro">
@@ -864,7 +1331,7 @@ export default function Home() {
           <div className="map-toolbar">
             <div className="legend" aria-label="Map legend">
               <span><i className="legend-plot" />Your plot</span>
-              <span><i className="legend-neighbour" />Neighbour plots</span>
+              <span><i className="legend-neighbour" />Path & nearby plots</span>
               <span><i className="legend-fence" />Climbing fence</span>
             </div>
             <div className="zoom-controls">
@@ -982,7 +1449,7 @@ export default function Home() {
                 {neighbourImpacts.length > 0 && (
                   <p>
                     <strong>{neighbourImpacts.length} plot {neighbourImpacts.length === 1 ? "item" : "items"}</strong>{" "}
-                    currently project shade into 3O or 3A.
+                    currently project shade into 3O or across the east path.
                   </p>
                 )}
               </>
@@ -1075,24 +1542,377 @@ export default function Home() {
 
           <div className="action-row">
             <button className="save-button" onClick={save}>Save now</button>
-            <button
-              onClick={() => {
-                const blob = new Blob([JSON.stringify(plan, null, 2)], {
-                  type: "application/json",
-                });
-                const url = URL.createObjectURL(blob);
-                const anchor = document.createElement("a");
-                anchor.href = url;
-                anchor.download = "plot-3p-plan.json";
-                anchor.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              Export plan
-            </button>
+            <button onClick={exportPlan}>Export plan</button>
           </div>
         </aside>
       </section>
+      ) : (
+        <section className="planner-workspace">
+          <aside className="planner-catalog">
+            <div className="panel-section intro">
+              <span className="section-number">01</span>
+              <div>
+                <h2>Choose vegetables</h2>
+                <p>
+                  The library filters to crops suited to sowing or planting in
+                  Melbourne in the selected month.
+                </p>
+              </div>
+            </div>
+
+            <label className="planner-field">
+              Planting month
+              <select
+                value={plan.plannerSettings.month}
+                onChange={(event) =>
+                  updatePlannerSettings({ month: Number(event.target.value) })
+                }
+              >
+                {monthNames.map((month, index) => (
+                  <option value={index + 1} key={month}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="planner-field">
+              Find a crop
+              <input
+                type="search"
+                value={cropSearch}
+                placeholder="e.g. tomato or leaf"
+                onChange={(event) => setCropSearch(event.target.value)}
+              />
+            </label>
+
+            <div className="crop-library" aria-label="Vegetable library">
+              {filteredCrops.map((crop) => (
+                <button
+                  className="crop-card"
+                  key={crop.id}
+                  onClick={() => addCropRequest(crop.id)}
+                >
+                  <span
+                    className="crop-swatch"
+                    style={{ background: crop.color }}
+                  >
+                    {crop.short}
+                  </span>
+                  <span>
+                    <strong>{crop.name}</strong>
+                    <small>
+                      {Math.round(crop.spacing * 100)} cm ·{" "}
+                      {crop.sun === "full" ? "full sun" : "part shade"}
+                    </small>
+                  </span>
+                  <span className="crop-add">+</span>
+                </button>
+              ))}
+              {filteredCrops.length === 0 && (
+                <p className="empty-copy">
+                  No matching crops in this month. Try another month or a
+                  broader search.
+                </p>
+              )}
+            </div>
+
+            <details className="model-details research-details">
+              <summary>Spacing approach</summary>
+              <p>
+                Mature spread drives the circles. Intensive mode applies the
+                raised-bed 20% spacing reduction; quick crops may share early
+                space with slower plants.
+              </p>
+            </details>
+          </aside>
+
+          <section className="planting-map">
+            <div className="planting-toolbar">
+              <div>
+                <strong>Detailed planting plan</strong>
+                <span>25 cm grid · mature spread shown to scale</span>
+              </div>
+              <div className="planting-metrics">
+                <span>
+                  <b>{fittedCount}</b> placed
+                </span>
+                <span>
+                  <b>{averageSun ? averageSun.toFixed(1) : "—"}</b> avg sun h
+                </span>
+                <span>
+                  <b>~9.7</b> m² plot
+                </span>
+              </div>
+            </div>
+            <div className="planting-canvas-wrap">
+              <PlantingCanvas
+                plan={plan}
+                selectedId={selectedPlacementId}
+                onSelect={setSelectedPlacementId}
+                onMove={(id, x, y) =>
+                  updatePlan((current) => ({
+                    ...current,
+                    placements: current.placements.map((placement) =>
+                      placement.id === id ? { ...placement, x, y } : placement,
+                    ),
+                  }))
+                }
+              />
+              <div className="planting-legend">
+                <span><i className="legend-fence" />6.6 m climbing fence</span>
+                <span><i className="legend-path" />Existing east path</span>
+                <span><i className="legend-step" />Suggested stepping access</span>
+              </div>
+            </div>
+          </section>
+
+          <aside className="planner-list">
+            <div className="panel-section">
+              <span className="section-number">02</span>
+              <div>
+                <h2>Your planting list</h2>
+                <p>
+                  Set quantities and priorities, then generate an editable
+                  layout.
+                </p>
+              </div>
+            </div>
+
+            <div className="request-list">
+              {plan.plantingRequests.length === 0 ? (
+                <div className="selection-prompt">
+                  Add vegetables from the library. Start with what you want to
+                  eat; the tool will tell you what fits.
+                </div>
+              ) : (
+                plan.plantingRequests.map((request) => {
+                  const crop = CROP_BY_ID[request.cropId];
+                  const fitted = plan.placements.filter(
+                    (placement) => placement.requestId === request.id,
+                  ).length;
+                  return (
+                    <div className="request-row" key={request.id}>
+                      <span
+                        className="crop-swatch compact"
+                        style={{ background: crop.color }}
+                      >
+                        {crop.short}
+                      </span>
+                      <div>
+                        <strong>{crop.name}</strong>
+                        <small>
+                          {fitted
+                            ? `${fitted}/${request.quantity} fitted`
+                            : `${Math.round(crop.spacing * 100)} cm spacing`}
+                        </small>
+                      </div>
+                      <input
+                        aria-label={`${crop.name} quantity`}
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={request.quantity}
+                        onChange={(event) =>
+                          updatePlan((current) => ({
+                            ...current,
+                            plantingRequests: current.plantingRequests.map(
+                              (item) =>
+                                item.id === request.id
+                                  ? {
+                                      ...item,
+                                      quantity: Math.max(
+                                        1,
+                                        Number(event.target.value),
+                                      ),
+                                    }
+                                  : item,
+                            ),
+                            placements: [],
+                            layoutNotes: [],
+                          }))
+                        }
+                      />
+                      <button
+                        className={
+                          request.priority === "high"
+                            ? "priority-button active"
+                            : "priority-button"
+                        }
+                        aria-label={`Toggle ${crop.name} priority`}
+                        aria-pressed={request.priority === "high"}
+                        onClick={() =>
+                          updatePlan((current) => ({
+                            ...current,
+                            plantingRequests: current.plantingRequests.map(
+                              (item) =>
+                                item.id === request.id
+                                  ? {
+                                      ...item,
+                                      priority:
+                                        item.priority === "high"
+                                          ? "normal"
+                                          : "high",
+                                    }
+                                  : item,
+                            ),
+                          }))
+                        }
+                      >
+                        ★
+                      </button>
+                      <button
+                        className="request-remove"
+                        aria-label={`Remove ${crop.name}`}
+                        onClick={() =>
+                          updatePlan((current) => ({
+                            ...current,
+                            plantingRequests:
+                              current.plantingRequests.filter(
+                                (item) => item.id !== request.id,
+                              ),
+                            placements: current.placements.filter(
+                              (placement) =>
+                                placement.requestId !== request.id,
+                            ),
+                          }))
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="planner-options">
+              <label>
+                Layout density
+                <select
+                  value={plan.plannerSettings.density}
+                  onChange={(event) =>
+                    updatePlannerSettings({
+                      density: event.target.value as
+                        | "standard"
+                        | "intensive",
+                    })
+                  }
+                >
+                  <option value="intensive">Intensive bed</option>
+                  <option value="standard">Packet spacing</option>
+                </select>
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={plan.plannerSettings.interplant}
+                  onChange={(event) =>
+                    updatePlannerSettings({ interplant: event.target.checked })
+                  }
+                />
+                Allow interplanting
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={plan.plannerSettings.accessPath}
+                  onChange={(event) =>
+                    updatePlannerSettings({ accessPath: event.target.checked })
+                  }
+                />
+                Reserve stepping access
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={plan.plannerSettings.useFence}
+                  onChange={(event) =>
+                    updatePlannerSettings({ useFence: event.target.checked })
+                  }
+                />
+                Put climbers on fence
+              </label>
+            </div>
+
+            <button
+              className="generate-button"
+              disabled={plannedCount === 0}
+              onClick={generatePlantingPlan}
+            >
+              Generate planting guide
+            </button>
+
+            {selectedPlacement ? (
+              <div className="placement-detail">
+                <div>
+                  <small>Selected planting</small>
+                  <h3>{CROP_BY_ID[selectedPlacement.cropId].name}</h3>
+                </div>
+                <p>{selectedPlacement.reason}</p>
+                <div className="position-readout">
+                  <span>{selectedPlacement.sunHours.toFixed(1)} sun h</span>
+                  <span>
+                    {Math.round(
+                      CROP_BY_ID[selectedPlacement.cropId].spacing * 100,
+                    )}{" "}
+                    cm spread
+                  </span>
+                </div>
+                <button
+                  className="delete-button"
+                  onClick={() => {
+                    updatePlan((current) => ({
+                      ...current,
+                      placements: current.placements.filter(
+                        (placement) =>
+                          placement.id !== selectedPlacement.id,
+                      ),
+                    }));
+                    setSelectedPlacementId(null);
+                  }}
+                >
+                  Remove this plant
+                </button>
+              </div>
+            ) : (
+              plan.layoutNotes.length > 0 && (
+                <div className="layout-explanation">
+                  <h3>Why this layout</h3>
+                  <ul>
+                    {plan.layoutNotes.map((note) => (
+                      <li key={note}>{note}</li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            )}
+
+            <div className="planner-actions">
+              <button onClick={save}>Save now</button>
+              <button onClick={exportPlan}>Export JSON</button>
+              <button onClick={() => importRef.current?.click()}>
+                Import JSON
+              </button>
+              <input
+                ref={importRef}
+                className="file-input"
+                type="file"
+                accept="application/json"
+                onChange={(event) => importPlan(event.target.files?.[0])}
+              />
+            </div>
+
+            <details className="model-details">
+              <summary>Planner assumptions</summary>
+              <p>
+                Crop spacing and Melbourne sowing months are planning defaults,
+                not cultivar-specific instructions. Confirm seed packets before
+                planting. Tree shade uses editable assumed heights.
+              </p>
+            </details>
+          </aside>
+        </section>
+      )}
     </main>
   );
 }

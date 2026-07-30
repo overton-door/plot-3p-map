@@ -6,7 +6,8 @@ export type CropGroup =
   | "brassica"
   | "legume"
   | "herb"
-  | "flower";
+  | "flower"
+  | "perennial";
 
 export type Crop = {
   id: string;
@@ -19,6 +20,9 @@ export type Crop = {
   sun: SunNeed;
   months: number[];
   days: number;
+  peakMonths?: number[];
+  perennial?: boolean;
+  layout?: "row" | "block" | "individual";
   support?: boolean;
   quick?: boolean;
   frequent?: boolean;
@@ -40,6 +44,8 @@ export type PlantingPlacement = {
   y: number;
   sunHours: number;
   reason: string;
+  status: "planned" | "planted";
+  locked: boolean;
   interplantedWith?: string;
 };
 
@@ -50,6 +56,8 @@ export type PlannerSettings = {
   accessPath: boolean;
   useFence: boolean;
   showShade: boolean;
+  filterByMonth: boolean;
+  scenarioSeed: number;
 };
 
 export type LayoutResult = {
@@ -113,6 +121,8 @@ export const CROPS: Crop[] = [
     sun: "full",
     months: [9, 10, 11, 12],
     days: 95,
+    peakMonths: [12, 1, 2],
+    layout: "individual",
     support: true,
     frequent: true,
     color: "#cf6a42",
@@ -533,11 +543,134 @@ export const CROPS: Crop[] = [
     days: 90,
     color: "#e26c45",
   },
+  {
+    id: "asparagus",
+    name: "Asparagus",
+    short: "As",
+    group: "perennial",
+    family: "Asparagaceae",
+    spacing: 0.45,
+    height: 1.5,
+    sun: "full",
+    months: [5, 6, 7, 8],
+    peakMonths: [11, 12, 1, 2, 3],
+    days: 730,
+    perennial: true,
+    layout: "row",
+    color: "#5f8b63",
+  },
+  {
+    id: "rhubarb",
+    name: "Rhubarb",
+    short: "Rh",
+    group: "perennial",
+    family: "Polygonaceae",
+    spacing: 0.9,
+    height: 0.8,
+    sun: "part",
+    months: [5, 6, 7, 8, 9],
+    peakMonths: [10, 11, 12, 1, 2, 3],
+    days: 365,
+    perennial: true,
+    layout: "individual",
+    color: "#a54f57",
+  },
+  {
+    id: "globe-artichoke",
+    name: "Globe artichoke",
+    short: "Ga",
+    group: "perennial",
+    family: "Asteraceae",
+    spacing: 1.2,
+    height: 1.6,
+    sun: "full",
+    months: [8, 9, 10, 11],
+    peakMonths: [12, 1, 2, 3, 4],
+    days: 180,
+    perennial: true,
+    layout: "individual",
+    color: "#78958a",
+  },
+  {
+    id: "strawberry",
+    name: "Strawberry",
+    short: "St",
+    group: "perennial",
+    family: "Rosaceae",
+    spacing: 0.3,
+    height: 0.25,
+    sun: "full",
+    months: [3, 4, 5, 6, 7, 8, 9],
+    peakMonths: [10, 11, 12, 1],
+    days: 120,
+    perennial: true,
+    layout: "block",
+    frequent: true,
+    color: "#bd5860",
+  },
+  {
+    id: "rosemary",
+    name: "Rosemary",
+    short: "Ro",
+    group: "perennial",
+    family: "Lamiaceae",
+    spacing: 0.8,
+    height: 1.2,
+    sun: "full",
+    months: [3, 4, 5, 8, 9, 10, 11],
+    peakMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    days: 180,
+    perennial: true,
+    layout: "individual",
+    color: "#557a6c",
+  },
+  {
+    id: "thyme",
+    name: "Thyme",
+    short: "Th",
+    group: "perennial",
+    family: "Lamiaceae",
+    spacing: 0.3,
+    height: 0.25,
+    sun: "full",
+    months: [3, 4, 5, 8, 9, 10, 11],
+    peakMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    days: 120,
+    perennial: true,
+    layout: "block",
+    frequent: true,
+    color: "#788a69",
+  },
+  {
+    id: "chives",
+    name: "Chives",
+    short: "Ch",
+    group: "perennial",
+    family: "Amaryllidaceae",
+    spacing: 0.25,
+    height: 0.35,
+    sun: "part",
+    months: [3, 4, 5, 8, 9, 10],
+    peakMonths: [9, 10, 11, 12, 1, 2, 3, 4, 5],
+    days: 90,
+    perennial: true,
+    layout: "block",
+    frequent: true,
+    color: "#748c64",
+  },
 ];
 
 export const CROP_BY_ID = Object.fromEntries(
   CROPS.map((crop) => [crop.id, crop]),
 ) as Record<string, Crop>;
+
+export function peakMonthForCrop(crop: Crop) {
+  if (crop.peakMonths?.length) {
+    return crop.peakMonths[Math.floor(crop.peakMonths.length / 2)];
+  }
+  const growthMonths = Math.max(1, Math.round(crop.days / 30));
+  return ((crop.months[0] - 1 + growthMonths) % 12) + 1;
+}
 
 export function pointInPolygon(
   point: [number, number],
@@ -629,9 +762,20 @@ function fenceCandidates(crop: Crop, quantity: number) {
 export function generateLayout(
   requests: PlantingRequest[],
   settings: PlannerSettings,
-  sunHoursAt: (x: number, y: number) => number,
+  sunHoursAt: (x: number, y: number, crop: Crop) => number,
+  shadeCostAt: (
+    crop: Crop,
+    x: number,
+    y: number,
+    placed: PlantingPlacement[],
+  ) => number = () => 0,
+  fixedPlacements: PlantingPlacement[] = [],
 ): LayoutResult {
-  const placements: PlantingPlacement[] = [];
+  const placements: PlantingPlacement[] = fixedPlacements.map((placement) => ({
+    ...placement,
+    locked: placement.locked ?? true,
+    status: placement.status ?? "planned",
+  }));
   const unplaced: Record<string, number> = {};
   const densityFactor = settings.density === "intensive" ? 0.8 : 1;
   const sorted = [...requests].sort((a, b) => {
@@ -662,56 +806,130 @@ export function generateLayout(
   for (const request of sorted) {
     const crop = CROP_BY_ID[request.cropId];
     if (!crop) continue;
-    let remaining = request.quantity;
+    const committedCount = placements.filter(
+      (placement) => placement.requestId === request.id,
+    ).length;
+    let remaining = Math.max(0, request.quantity - committedCount);
     const preferredFence =
       crop.support && settings.useFence
-        ? fenceCandidates(crop, request.quantity)
+        ? fenceCandidates(crop, remaining).map((candidate) => ({
+            ...candidate,
+            fence: true,
+          }))
         : [];
-
-    const candidates = [
+    const candidates: Array<{ x: number; y: number; fence?: boolean }> = [
       ...preferredFence,
       ...grid
         .filter(
           (candidate) =>
             boundaryDistance([candidate.x, candidate.y]) >=
             Math.max(0.08, (crop.spacing * densityFactor) / 2),
-        )
+        ),
+    ];
+    const used = new Set<string>();
+
+    while (remaining > 0) {
+      const viable = candidates
+        .filter((candidate) => {
+          const key = `${candidate.x}:${candidate.y}`;
+          if (used.has(key)) return false;
+          if (!pointInPolygon([candidate.x, candidate.y], PLOT_3P)) return false;
+          return !placements.some((placed) => {
+            const other = CROP_BY_ID[placed.cropId];
+            if (!other) return false;
+            const normalDistance =
+              ((crop.spacing + other.spacing) / 2) * densityFactor;
+            const canInterplant =
+              settings.interplant &&
+              crop.quick !== other.quick &&
+              (crop.quick || other.quick);
+            const required = canInterplant
+              ? Math.max(0.12, normalDistance * 0.58)
+              : normalDistance;
+            return (
+              Math.hypot(candidate.x - placed.x, candidate.y - placed.y) <
+              required
+            );
+          });
+        })
         .map((candidate) => {
-          const sunHours = sunHoursAt(candidate.x, candidate.y);
-          const target = crop.sun === "full" ? 7 : 4;
-          const sunFit = -Math.abs(sunHours - target) * 2;
+          const sunHours = sunHoursAt(candidate.x, candidate.y, crop);
+          const target = crop.sun === "full" ? 7 : 4.5;
+          const sunlightFit =
+            Math.min(1, sunHours / target) -
+            Math.max(0, target - sunHours) * 0.08;
+          const shadeCost = shadeCostAt(
+            crop,
+            candidate.x,
+            candidate.y,
+            placements,
+          );
+          const sameCrop = placements.filter(
+            (placement) => placement.cropId === crop.id,
+          );
+          const layout =
+            crop.layout ??
+            (crop.perennial || crop.spacing > 0.5
+              ? "individual"
+              : crop.spacing <= 0.2
+                ? "row"
+                : "block");
+          const nearestSame = sameCrop.length
+            ? Math.min(
+                ...sameCrop.map((placement) =>
+                  Math.hypot(
+                    candidate.x - placement.x,
+                    candidate.y - placement.y,
+                  ),
+                ),
+              )
+            : 1.5;
+          const alignedWithSame = sameCrop.some(
+            (placement) =>
+              Math.abs(candidate.x - placement.x) < 0.08 ||
+              Math.abs(candidate.y - placement.y) < 0.08,
+          );
+          const orderFit =
+            layout === "row"
+              ? (alignedWithSame ? 2.5 : 0) - nearestSame * 0.35
+              : layout === "block"
+                ? Math.max(0, 1.8 - nearestSame)
+                : 0.2;
           const accessFit =
-            (crop.frequent ? 2.2 : 0.8) *
-            (1.15 - accessDistance([candidate.x, candidate.y], settings.accessPath));
-          const neighbourProtection =
-            crop.height * Math.min(1.5, candidate.y) * 0.9;
+            (crop.frequent ? 1.4 : 0.55) *
+            (1.15 -
+              accessDistance(
+                [candidate.x, candidate.y],
+                settings.accessPath,
+              ));
+          const aestheticFit =
+            orderFit +
+            accessFit +
+            (candidate.fence && crop.support ? 2 : 0) +
+            (Math.sin(
+              candidate.x * 12.9898 +
+                candidate.y * 78.233 +
+                settings.scenarioSeed * 37.719 +
+                crop.id.length,
+            ) +
+              1) *
+              0.4;
           return {
             ...candidate,
-            score: sunFit + accessFit + neighbourProtection,
+            sunHours,
+            score:
+              sunlightFit * 1_000_000 -
+              Math.min(20, shadeCost) * 10_000 +
+              orderFit * 100 +
+              aestheticFit,
           };
         })
-        .sort((a, b) => b.score - a.score),
-    ];
+        .sort((a, b) => b.score - a.score);
 
-    for (const candidate of candidates) {
-      if (remaining <= 0) break;
-      if (!pointInPolygon([candidate.x, candidate.y], PLOT_3P)) continue;
-      const collision = placements.find((placed) => {
-        const other = CROP_BY_ID[placed.cropId];
-        const normalDistance =
-          ((crop.spacing + other.spacing) / 2) * densityFactor;
-        const canInterplant =
-          settings.interplant &&
-          crop.quick !== other.quick &&
-          (crop.quick || other.quick);
-        const required = canInterplant
-          ? Math.max(0.12, normalDistance * 0.58)
-          : normalDistance;
-        return Math.hypot(candidate.x - placed.x, candidate.y - placed.y) < required;
-      });
-      if (collision) continue;
-
-      const sunHours = sunHoursAt(candidate.x, candidate.y);
+      const candidate = viable[0];
+      if (!candidate) break;
+      used.add(`${candidate.x}:${candidate.y}`);
+      const sunHours = candidate.sunHours;
       const host =
         settings.interplant && crop.quick
           ? placements.find((placed) => {
@@ -723,18 +941,17 @@ export function generateLayout(
               );
             })
           : undefined;
-      const fencePlaced = preferredFence.some(
-        (point) =>
-          Math.hypot(point.x - candidate.x, point.y - candidate.y) < 0.03,
-      );
+      const fencePlaced = Boolean(candidate.fence);
 
       placements.push({
-        id: `${request.id}-${request.quantity - remaining}`,
+        id: `${request.id}-${Date.now()}-${remaining}`,
         requestId: request.id,
         cropId: crop.id,
         x: Math.round(candidate.x * 100) / 100,
         y: Math.round(candidate.y * 100) / 100,
         sunHours,
+        status: "planned",
+        locked: false,
         interplantedWith: host?.id,
         reason: fencePlaced
           ? "Uses the 6.6 m climbing fence"
@@ -759,7 +976,10 @@ export function generateLayout(
     settings.useFence
       ? "Climbers are placed on the diagonal fence before open-bed crops."
       : "The fence is left unused by the generator.",
-    "Tall crops are held back from the southern 3O boundary where space allows.",
+    "Optimisation order: peak-season sunlight, shade protection, crop rows or blocks, then aesthetics and access.",
+    fixedPlacements.length
+      ? `${fixedPlacements.length} planted or locked positions were preserved while proposals were remodelled.`
+      : "All placements are proposals until marked planted or locked.",
   ];
 
   return { placements, unplaced, notes };

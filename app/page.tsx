@@ -11,6 +11,7 @@ import {
   PLOT_3O,
   PLOT_3P,
   generateLayout,
+  peakMonthForCrop,
   type PlannerSettings,
   type PlantingPlacement,
   type PlantingRequest,
@@ -97,6 +98,8 @@ const DEFAULT_PLAN: PlanData = {
     accessPath: true,
     useFence: true,
     showShade: true,
+    filterByMonth: false,
+    scenarioSeed: 0,
   },
   layoutNotes: [],
 };
@@ -350,7 +353,25 @@ function pointIsShaded(
   });
 }
 
-function plantingObjects(placements: PlantingPlacement[]): PlotObject[] {
+function monthDistance(a: number, b: number) {
+  const difference = Math.abs(a - b);
+  return Math.min(difference, 12 - difference);
+}
+
+function seasonalHeightFactor(crop: (typeof CROPS)[number], month: number) {
+  const peakMonths = crop.peakMonths?.length
+    ? crop.peakMonths
+    : [peakMonthForCrop(crop)];
+  const distance = Math.min(
+    ...peakMonths.map((peakMonth) => monthDistance(month, peakMonth)),
+  );
+  return Math.max(crop.perennial ? 0.12 : 0.05, 1 - distance * 0.28);
+}
+
+function plantingObjects(
+  placements: PlantingPlacement[],
+  month: number,
+): PlotObject[] {
   return placements.flatMap((placement) => {
     const crop = CROP_BY_ID[placement.cropId];
     if (!crop) return [];
@@ -361,7 +382,7 @@ function plantingObjects(placements: PlantingPlacement[]): PlotObject[] {
         name: crop.name,
         x: placement.x,
         y: placement.y,
-        height: crop.height,
+        height: crop.height * seasonalHeightFactor(crop, month),
         canopy: crop.spacing,
         color: crop.color,
       },
@@ -424,7 +445,11 @@ function normalisePlan(value: Partial<PlanData> | undefined): PlanData {
     ...value,
     objects: value.objects?.length ? value.objects : DEFAULT_PLAN.objects,
     plantingRequests: value.plantingRequests ?? [],
-    placements: value.placements ?? [],
+    placements: (value.placements ?? []).map((placement) => ({
+      ...placement,
+      status: placement.status ?? "planned",
+      locked: placement.locked ?? false,
+    })),
     plannerSettings: {
       ...DEFAULT_PLAN.plannerSettings,
       ...(value.plannerSettings ?? {}),
@@ -797,6 +822,7 @@ function PlotCanvas({
 function PlantingCanvas({
   plan,
   sun,
+  shadeMonth,
   showShade,
   selectedId,
   onSelect,
@@ -804,6 +830,7 @@ function PlantingCanvas({
 }: {
   plan: PlanData;
   sun: SolarPosition;
+  shadeMonth: number;
   showShade: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
@@ -932,7 +959,7 @@ function PlantingCanvas({
       plan.objects
         .filter((item) => item.context)
         .forEach((item) => renderShadow(item, false));
-      plantingObjects(plan.placements).forEach((item) =>
+      plantingObjects(plan.placements, shadeMonth).forEach((item) =>
         renderShadow(item, true),
       );
       if (sun.elevation <= 0.3) {
@@ -973,7 +1000,8 @@ function PlantingCanvas({
       const radius = Math.max(8 * ratio, (crop.spacing * scale) / 2);
       context.beginPath();
       context.arc(x, y, radius, 0, Math.PI * 2);
-      context.fillStyle = `${crop.color}d9`;
+      context.fillStyle =
+        placement.status === "planted" ? crop.color : `${crop.color}b8`;
       context.fill();
       context.strokeStyle =
         placement.id === selectedId ? "#d85f38" : `${crop.color}`;
@@ -984,6 +1012,22 @@ function PlantingCanvas({
       }
       context.stroke();
       context.setLineDash([]);
+      if (placement.status === "planted") {
+        context.strokeStyle = "#263d2d";
+        context.lineWidth = 1.8 * ratio;
+        context.beginPath();
+        context.arc(x, y, radius + 3 * ratio, 0, Math.PI * 2);
+        context.stroke();
+      }
+      if (placement.locked) {
+        context.fillStyle = "#24362a";
+        context.fillRect(
+          x + radius * 0.48,
+          y - radius * 0.82,
+          6 * ratio,
+          6 * ratio,
+        );
+      }
       context.fillStyle = "#fffdf7";
       context.font = `700 ${Math.max(8, Math.min(11, radius / ratio)) * ratio}px ui-sans-serif`;
       context.textAlign = "center";
@@ -999,7 +1043,7 @@ function PlantingCanvas({
     const [plot3AX, plot3AY] = world(6.25, 1.55);
     context.fillText("PLOT 3A · HALF", plot3AX, plot3AY);
 
-    const [northX, northY] = world(5.35, 4.3);
+    const [northX, northY] = world(6.3, 4.65);
     context.fillStyle = "#20382a";
     context.font = `700 ${11 * ratio}px ui-sans-serif`;
     context.textAlign = "center";
@@ -1021,7 +1065,7 @@ function PlantingCanvas({
     context.fillText("EXISTING ACCESS PATH", 0, 0);
     context.restore();
 
-    const [scaleX, scaleY] = world(0.2, 0.2);
+    const [scaleX, scaleY] = world(-0.25, -0.98);
     context.strokeStyle = "#2d3c31";
     context.lineWidth = 2 * ratio;
     context.beginPath();
@@ -1035,7 +1079,7 @@ function PlantingCanvas({
     context.fillStyle = "#2d3c31";
     context.font = `${9 * ratio}px ui-monospace`;
     context.fillText("1 m", scaleX + scale / 2, scaleY - 10 * ratio);
-  }, [plan, selectedId, showShade, sun]);
+  }, [plan, selectedId, shadeMonth, showShade, sun]);
 
   useEffect(() => {
     draw();
@@ -1077,9 +1121,11 @@ function PlantingCanvas({
       onPointerDown={(event) => {
         const point = pointFromEvent(event);
         const hit = hitTest(point);
-        dragRef.current = hit?.id ?? null;
+        dragRef.current = hit && !hit.locked ? hit.id : null;
         onSelect(hit?.id ?? null);
-        if (hit) canvasRef.current?.setPointerCapture(event.pointerId);
+        if (hit && !hit.locked) {
+          canvasRef.current?.setPointerCapture(event.pointerId);
+        }
       }}
       onPointerMove={(event) => {
         if (!dragRef.current) return;
@@ -1133,12 +1179,13 @@ export default function Home() {
     [date, plan.latitude, plan.longitude],
   );
   const neighbourPlantShade = useMemo(() => {
-    const objects = plantingObjects(plan.placements);
+    const shadeMonth = Number(date.slice(5, 7)) || 1;
+    const objects = plantingObjects(plan.placements, shadeMonth);
     return {
       plot3O: shadeCoveragePercent(objects, sun, PLOT_3O),
       plot3A: shadeCoveragePercent(objects, sun, PLOT_3A_BEYOND_PATH),
     };
-  }, [plan.placements, sun]);
+  }, [date, plan.placements, sun]);
 
   const updatePlan = useCallback((next: PlanData | ((old: PlanData) => PlanData)) => {
     setPlan(next);
@@ -1255,26 +1302,74 @@ export default function Home() {
               priority: "normal",
             },
           ],
-      placements: [],
       layoutNotes: [],
     }));
   };
 
   const generatePlantingPlan = () => {
-    const month = plan.plannerSettings.month;
     const year = Number(date.slice(0, 4)) || new Date().getFullYear();
-    const planningDate = `${year}-${String(month).padStart(2, "0")}-15`;
     const cache = new Map<string, number>();
+    const scenarioSettings = {
+      ...plan.plannerSettings,
+      scenarioSeed: plan.plannerSettings.scenarioSeed + 1,
+    };
+    const fixedPlacements = plan.placements.filter(
+      (placement) => placement.locked || placement.status === "planted",
+    );
     const result = generateLayout(
       plan.plantingRequests,
-      plan.plannerSettings,
-      (x, y) => {
-        const key = `${x.toFixed(2)}:${y.toFixed(2)}`;
+      scenarioSettings,
+      (x, y, crop) => {
+        const peakMonth = peakMonthForCrop(crop);
+        const peakDate = `${year}-${String(peakMonth).padStart(2, "0")}-15`;
+        const key = `${crop.id}:${x.toFixed(2)}:${y.toFixed(2)}`;
         if (!cache.has(key)) {
-          cache.set(key, estimateSunHours(planningDate, x, y, plan));
+          cache.set(key, estimateSunHours(peakDate, x, y, plan));
         }
         return cache.get(key) ?? 0;
       },
+      (crop, x, y, placed) => {
+        const peakMonth = peakMonthForCrop(crop);
+        const peakDate = `${year}-${String(peakMonth).padStart(2, "0")}-15`;
+        const candidate: PlotObject = {
+          id: "candidate",
+          kind: "plant",
+          name: crop.name,
+          x,
+          y,
+          height: crop.height,
+          canopy: crop.spacing,
+          color: crop.color,
+        };
+        let cost = 0;
+        [540, 720, 900].forEach((sampleMinutes) => {
+          const peakSun = solarPosition(
+            zonedDate(peakDate, sampleMinutes),
+            plan.latitude,
+            plan.longitude,
+          );
+          if (shadowTouchesPolygon(candidate, peakSun, PLOT_3O)) cost += 2.4;
+          if (shadowTouchesPolygon(candidate, peakSun, PLOT_3A_BEYOND_PATH)) {
+            cost += 2.4;
+          }
+          placed.forEach((placement) => {
+            const other = CROP_BY_ID[placement.cropId];
+            if (
+              other &&
+              pointIsShaded(
+                placement.x,
+                placement.y,
+                peakSun,
+                [candidate],
+              )
+            ) {
+              cost += other.sun === "full" ? 0.75 : 0.35;
+            }
+          });
+        });
+        return cost / 3;
+      },
+      fixedPlacements,
     );
     const unplacedTotal = Object.values(result.unplaced).reduce(
       (sum, value) => sum + value,
@@ -1283,6 +1378,7 @@ export default function Home() {
     updatePlan((current) => ({
       ...current,
       placements: result.placements,
+      plannerSettings: scenarioSettings,
       layoutNotes: [
         ...result.notes,
         unplacedTotal
@@ -1333,7 +1429,8 @@ export default function Home() {
       (!query ||
         crop.name.toLowerCase().includes(query) ||
         crop.group.includes(query)) &&
-      crop.months.includes(plan.plannerSettings.month)
+      (!plan.plannerSettings.filterByMonth ||
+        crop.months.includes(plan.plannerSettings.month))
     );
   });
   const plannedCount = plan.plantingRequests.reduce(
@@ -1341,6 +1438,12 @@ export default function Home() {
     0,
   );
   const fittedCount = plan.placements.length;
+  const plantedCount = plan.placements.filter(
+    (placement) => placement.status === "planted",
+  ).length;
+  const fixedCount = plan.placements.filter(
+    (placement) => placement.locked || placement.status === "planted",
+  ).length;
   const averageSun =
     fittedCount > 0
       ? plan.placements.reduce((sum, placement) => sum + placement.sunHours, 0) /
@@ -1686,16 +1789,17 @@ export default function Home() {
               <div>
                 <h2>Choose vegetables & flowers</h2>
                 <p>
-                  The library filters to plants suited to sowing or planting in
-                  Melbourne in the selected month.
+                  Browse the full library, or filter to plants suited to a
+                  Melbourne planting month.
                 </p>
               </div>
             </div>
 
             <label className="planner-field">
-              Planting month
+              Optional planting-month filter
               <select
                 value={plan.plannerSettings.month}
+                disabled={!plan.plannerSettings.filterByMonth}
                 onChange={(event) =>
                   updatePlannerSettings({ month: Number(event.target.value) })
                 }
@@ -1706,6 +1810,18 @@ export default function Home() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="check-row library-filter">
+              <input
+                type="checkbox"
+                checked={plan.plannerSettings.filterByMonth}
+                onChange={(event) =>
+                  updatePlannerSettings({
+                    filterByMonth: event.target.checked,
+                  })
+                }
+              />
+              Only show plants for this month
             </label>
             <label className="planner-field">
               Find a plant
@@ -1735,6 +1851,7 @@ export default function Home() {
                     <small>
                       {Math.round(crop.spacing * 100)} cm ·{" "}
                       {crop.sun === "full" ? "full sun" : "part shade"}
+                      {crop.perennial ? " · perennial" : ""}
                     </small>
                   </span>
                   <span className="crop-add">+</span>
@@ -1769,10 +1886,13 @@ export default function Home() {
                   <b>{fittedCount}</b> placed
                 </span>
                 <span>
-                  <b>{averageSun ? averageSun.toFixed(1) : "—"}</b> avg sun h
+                  <b>{plantedCount}</b> planted
                 </span>
                 <span>
-                  <b>~9.7</b> m² plot
+                  <b>{fixedCount}</b> fixed
+                </span>
+                <span>
+                  <b>{averageSun ? averageSun.toFixed(1) : "—"}</b> avg sun h
                 </span>
               </div>
             </div>
@@ -1807,6 +1927,23 @@ export default function Home() {
                 onChange={(event) => setMinutes(Number(event.target.value))}
               />
               <button
+                disabled={
+                  !plan.plannerSettings.showShade || !selectedPlacement
+                }
+                onClick={() => {
+                  if (!selectedPlacement) return;
+                  const peakMonth = peakMonthForCrop(
+                    CROP_BY_ID[selectedPlacement.cropId],
+                  );
+                  setDate(
+                    `${date.slice(0, 4)}-${String(peakMonth).padStart(2, "0")}-15`,
+                  );
+                  setMinutes(720);
+                }}
+              >
+                Peak selected
+              </button>
+              <button
                 disabled={!plan.plannerSettings.showShade}
                 onClick={() => setPlaying((value) => !value)}
               >
@@ -1822,6 +1959,7 @@ export default function Home() {
               <PlantingCanvas
                 plan={plan}
                 sun={sun}
+                shadeMonth={Number(date.slice(5, 7)) || 1}
                 showShade={plan.plannerSettings.showShade}
                 selectedId={selectedPlacementId}
                 onSelect={setSelectedPlacementId}
@@ -1864,6 +2002,8 @@ export default function Home() {
                 <span><i className="legend-fence" />6.6 m climbing fence</span>
                 <span><i className="legend-path" />Existing east path</span>
                 <span><i className="legend-step" />Suggested stepping access</span>
+                <span><i className="legend-planned" />Planned</span>
+                <span><i className="legend-planted" />Planted / fixed</span>
                 {plan.plannerSettings.showShade && (
                   <span><i className="legend-plant-shade" />Your plant shade</span>
                 )}
@@ -1932,7 +2072,12 @@ export default function Home() {
                                     }
                                   : item,
                             ),
-                            placements: [],
+                            placements: current.placements.filter(
+                              (placement) =>
+                                placement.requestId !== request.id ||
+                                placement.locked ||
+                                placement.status === "planted",
+                            ),
                             layoutNotes: [],
                           }))
                         }
@@ -2044,13 +2189,20 @@ export default function Home() {
               disabled={plannedCount === 0}
               onClick={generatePlantingPlan}
             >
-              Generate planting guide
+              {plan.placements.length
+                ? "Remodel unlocked proposals"
+                : "Generate planting guide"}
             </button>
 
             {selectedPlacement ? (
               <div className="placement-detail">
                 <div>
-                  <small>Selected planting</small>
+                  <small>
+                    {selectedPlacement.status === "planted"
+                      ? "Planted"
+                      : "Planned proposal"}
+                    {selectedPlacement.locked ? " · position locked" : ""}
+                  </small>
                   <h3>{CROP_BY_ID[selectedPlacement.cropId].name}</h3>
                 </div>
                 <p>{selectedPlacement.reason}</p>
@@ -2062,6 +2214,62 @@ export default function Home() {
                     )}{" "}
                     cm spread
                   </span>
+                  <span>
+                    {CROP_BY_ID[selectedPlacement.cropId].height.toFixed(1)} m
+                    peak ·{" "}
+                    {
+                      monthNames[
+                        peakMonthForCrop(
+                          CROP_BY_ID[selectedPlacement.cropId],
+                        ) - 1
+                      ]
+                    }
+                  </span>
+                </div>
+                <div className="placement-commit-actions">
+                  <button
+                    onClick={() =>
+                      updatePlan((current) => ({
+                        ...current,
+                        placements: current.placements.map((placement) =>
+                          placement.id === selectedPlacement.id
+                            ? {
+                                ...placement,
+                                status:
+                                  placement.status === "planted"
+                                    ? "planned"
+                                    : "planted",
+                                locked:
+                                  placement.status === "planted"
+                                    ? placement.locked
+                                    : true,
+                              }
+                            : placement,
+                        ),
+                      }))
+                    }
+                  >
+                    {selectedPlacement.status === "planted"
+                      ? "Mark as planned"
+                      : "Mark as planted"}
+                  </button>
+                  <button
+                    disabled={selectedPlacement.status === "planted"}
+                    onClick={() =>
+                      updatePlan((current) => ({
+                        ...current,
+                        placements: current.placements.map((placement) =>
+                          placement.id === selectedPlacement.id
+                            ? { ...placement, locked: !placement.locked }
+                            : placement,
+                        ),
+                      }))
+                    }
+                  >
+                    {selectedPlacement.locked
+                      ? "Unlock position"
+                      : "Lock position"}
+                  </button>
                 </div>
                 <button
                   className="delete-button"

@@ -863,6 +863,10 @@ input[type="range"] {
   margin-top: 18px;
 }
 
+.library-filter {
+  margin: -4px 0 12px;
+}
+
 .planting-map {
   min-width: 0;
   display: grid;
@@ -916,7 +920,7 @@ input[type="range"] {
 
 .planting-shade-controls {
   display: grid;
-  grid-template-columns: auto 132px minmax(110px, 1fr) auto auto;
+  grid-template-columns: auto 132px minmax(110px, 1fr) auto auto auto;
   gap: 9px;
   align-items: center;
   padding: 8px 14px;
@@ -1033,6 +1037,20 @@ input[type="range"] {
 .legend-plant-shade {
   border-radius: 7px;
   background: linear-gradient(90deg, rgba(105, 69, 38, .4), rgba(105, 69, 38, .12));
+}
+
+.legend-planned,
+.legend-planted {
+  width: 9px !important;
+  height: 9px !important;
+  border-radius: 50%;
+  background: rgba(95, 142, 86, 0.55);
+  border: 1px solid #4f7951;
+}
+
+.legend-planted {
+  background: #5f8e56;
+  box-shadow: 0 0 0 2px #263d2d;
 }
 
 .neighbour-shade-card {
@@ -1211,6 +1229,29 @@ input[type="range"] {
   margin-top: 10px;
 }
 
+.placement-commit-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.placement-commit-actions button {
+  padding: 8px 6px;
+  border: 1px solid #9ca996;
+  border-radius: 8px;
+  background: #f2f5ed;
+  color: #3d5542;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.placement-commit-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .layout-explanation ul {
   margin: 0;
   padding-left: 17px;
@@ -1296,7 +1337,7 @@ input[type="range"] {
   }
 
   .planting-shade-controls {
-    grid-template-columns: auto 132px minmax(120px, 1fr) auto;
+    grid-template-columns: auto 132px minmax(120px, 1fr) auto auto;
   }
 
   .planting-shade-controls > span {

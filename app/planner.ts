@@ -49,6 +49,7 @@ export type PlannerSettings = {
   interplant: boolean;
   accessPath: boolean;
   useFence: boolean;
+  showShade: boolean;
 };
 
 export type LayoutResult = {
@@ -682,8 +683,12 @@ export function generateLayout(
           const accessFit =
             (crop.frequent ? 2.2 : 0.8) *
             (1.15 - accessDistance([candidate.x, candidate.y], settings.accessPath));
-          const heightFit = crop.height * (4.55 - candidate.y) * 0.18;
-          return { ...candidate, score: sunFit + accessFit + heightFit };
+          const neighbourProtection =
+            crop.height * Math.min(1.5, candidate.y) * 0.9;
+          return {
+            ...candidate,
+            score: sunFit + accessFit + neighbourProtection,
+          };
         })
         .sort((a, b) => b.score - a.score),
     ];
@@ -754,6 +759,7 @@ export function generateLayout(
     settings.useFence
       ? "Climbers are placed on the diagonal fence before open-bed crops."
       : "The fence is left unused by the generator.",
+    "Tall crops are held back from the southern 3O boundary where space allows.",
   ];
 
   return { placements, unplaced, notes };

@@ -866,7 +866,7 @@ input[type="range"] {
 .planting-map {
   min-width: 0;
   display: grid;
-  grid-template-rows: 58px 1fr;
+  grid-template-rows: 58px auto 1fr;
   background: #f4f0e5;
 }
 
@@ -912,6 +912,66 @@ input[type="range"] {
   margin-right: 2px;
   color: var(--ink);
   font-size: 11px;
+}
+
+.planting-shade-controls {
+  display: grid;
+  grid-template-columns: auto 132px minmax(110px, 1fr) auto auto;
+  gap: 9px;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(238, 234, 222, 0.94);
+}
+
+.planting-shade-controls input[type="date"],
+.planting-shade-controls button {
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf7;
+  color: var(--ink);
+  font-size: 9px;
+}
+
+.planting-shade-controls button {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.planting-shade-controls button:disabled,
+.planting-shade-controls input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shade-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #475347;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.shade-toggle input {
+  accent-color: var(--green);
+}
+
+.shade-time-range {
+  width: 100%;
+  margin: 0;
+  accent-color: #bf794e;
+}
+
+.planting-shade-controls > span {
+  color: #6d736b;
+  font-size: 9px;
+  white-space: nowrap;
 }
 
 .planting-canvas-wrap {
@@ -968,6 +1028,50 @@ input[type="range"] {
   border-radius: 50%;
   background: #cbc4b5;
   border: 1px solid #989082;
+}
+
+.legend-plant-shade {
+  border-radius: 7px;
+  background: linear-gradient(90deg, rgba(105, 69, 38, .4), rgba(105, 69, 38, .12));
+}
+
+.neighbour-shade-card {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border: 1px solid rgba(114, 108, 89, 0.25);
+  border-radius: 10px;
+  background: rgba(255, 252, 241, 0.93);
+  box-shadow: 0 7px 20px rgba(55, 53, 44, 0.1);
+  color: #666b61;
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.neighbour-shade-card strong {
+  color: var(--ink);
+}
+
+.neighbour-shade-card span {
+  padding: 3px 6px;
+  border-radius: 6px;
+  background: #e4eadf;
+  color: #416045;
+  font-weight: 800;
+}
+
+.neighbour-shade-card span.warning {
+  background: #f4d8aa;
+  color: #87501f;
+}
+
+.neighbour-shade-card small {
+  color: #898b83;
+  font-size: 8px;
 }
 
 .request-list {
@@ -1191,6 +1295,14 @@ input[type="range"] {
     order: -1;
   }
 
+  .planting-shade-controls {
+    grid-template-columns: auto 132px minmax(120px, 1fr) auto;
+  }
+
+  .planting-shade-controls > span {
+    display: none;
+  }
+
   .crop-library {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1246,7 +1358,21 @@ input[type="range"] {
   }
 
   .planting-map {
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
+  }
+
+  .planting-shade-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .shade-time-range {
+    grid-column: 1 / -1;
+  }
+
+  .neighbour-shade-card {
+    left: 10px;
+    right: 10px;
+    flex-wrap: wrap;
   }
 
   .planting-metrics {

@@ -29,6 +29,12 @@ test("ships the scaled Plot 3P editor and Melbourne solar controls", async () =>
   assert.match(planner, /id: "zinnia"/);
   assert.match(planner, /id: "poppy"/);
   assert.match(page, /Choose vegetables & flowers/);
+  assert.match(page, /Show plant shade/);
+  assert.match(page, /Your plants’ shade now/);
+  assert.match(page, /shadeCoveragePercent/);
+  assert.match(page, /Amber at 10%\+ of neighbour area/);
+  assert.match(planner, /neighbourProtection/);
+  assert.match(planner, /held back from the southern 3O boundary/);
   assert.match(layout, /Plot 3P · Intelligent planting planner/);
   assert.doesNotMatch(page + planner + layout, /codex-preview|SkeletonPreview/);
 });

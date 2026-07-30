@@ -96,6 +96,7 @@ const DEFAULT_PLAN: PlanData = {
     interplant: true,
     accessPath: true,
     useFence: true,
+    showShade: true,
   },
   layoutNotes: [],
 };
@@ -347,6 +348,45 @@ function pointIsShaded(
       item.canopy / 2
     );
   });
+}
+
+function plantingObjects(placements: PlantingPlacement[]): PlotObject[] {
+  return placements.flatMap((placement) => {
+    const crop = CROP_BY_ID[placement.cropId];
+    if (!crop) return [];
+    return [
+      {
+        id: placement.id,
+        kind: "plant" as const,
+        name: crop.name,
+        x: placement.x,
+        y: placement.y,
+        height: crop.height,
+        canopy: crop.spacing,
+        color: crop.color,
+      },
+    ];
+  });
+}
+
+function shadeCoveragePercent(
+  objects: PlotObject[],
+  sun: SolarPosition,
+  polygon: [number, number][],
+) {
+  if (sun.elevation <= 0.3 || objects.length === 0) return 0;
+  const xs = polygon.map(([x]) => x);
+  const ys = polygon.map(([, y]) => y);
+  let shaded = 0;
+  let samples = 0;
+  for (let y = Math.min(...ys); y <= Math.max(...ys); y += 0.22) {
+    for (let x = Math.min(...xs); x <= Math.max(...xs); x += 0.22) {
+      if (!pointInPolygon([x, y], polygon)) continue;
+      samples += 1;
+      if (pointIsShaded(x, y, sun, objects)) shaded += 1;
+    }
+  }
+  return samples ? (shaded / samples) * 100 : 0;
 }
 
 function estimateSunHours(
@@ -756,18 +796,28 @@ function PlotCanvas({
 
 function PlantingCanvas({
   plan,
+  sun,
+  showShade,
   selectedId,
   onSelect,
   onMove,
 }: {
   plan: PlanData;
+  sun: SolarPosition;
+  showShade: boolean;
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onMove: (id: string, x: number, y: number) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<string | null>(null);
-  const transformRef = useRef({ left: 0, bottom: 0, scale: 1 });
+  const transformRef = useRef({
+    left: 0,
+    bottom: 0,
+    scale: 1,
+    minX: -0.45,
+    minY: -1.25,
+  });
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -778,16 +828,20 @@ function PlantingCanvas({
     const ratio = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.max(680, rect.width * ratio);
     canvas.height = Math.max(620, rect.height * ratio);
+    const minX = -0.45;
+    const minY = -1.25;
+    const viewWidth = 7.15;
+    const viewHeight = 6.35;
     const scale = Math.min(
-      (canvas.width - 90 * ratio) / 6.2,
-      (canvas.height - 90 * ratio) / 5.35,
+      (canvas.width - 70 * ratio) / viewWidth,
+      (canvas.height - 70 * ratio) / viewHeight,
     );
-    const left = (canvas.width - 6.2 * scale) / 2;
-    const bottom = (canvas.height - 5.35 * scale) / 2;
-    transformRef.current = { left, bottom, scale };
+    const left = (canvas.width - viewWidth * scale) / 2;
+    const bottom = (canvas.height - viewHeight * scale) / 2;
+    transformRef.current = { left, bottom, scale, minX, minY };
     const world = (x: number, y: number): [number, number] => [
-      left + (x + 0.45) * scale,
-      canvas.height - bottom - (y + 0.35) * scale,
+      left + (x - minX) * scale,
+      canvas.height - bottom - (y - minY) * scale,
     ];
 
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -796,18 +850,35 @@ function PlantingCanvas({
 
     context.strokeStyle = "rgba(47, 67, 50, .10)";
     context.lineWidth = 1;
-    for (let metre = 0; metre <= 5; metre += 0.25) {
+    for (let metre = -1.25; metre <= 6.75; metre += 0.25) {
       const [verticalX] = world(metre, 0);
       const [, horizontalY] = world(0, metre);
       context.beginPath();
-      context.moveTo(verticalX, world(0, -0.05)[1]);
-      context.lineTo(verticalX, world(0, 4.75)[1]);
+      context.moveTo(verticalX, world(0, minY)[1]);
+      context.lineTo(verticalX, world(0, 5.1)[1]);
       context.stroke();
       context.beginPath();
-      context.moveTo(world(-0.05, 0)[0], horizontalY);
-      context.lineTo(world(5.75, 0)[0], horizontalY);
+      context.moveTo(world(minX, 0)[0], horizontalY);
+      context.lineTo(world(6.7, 0)[0], horizontalY);
       context.stroke();
     }
+
+    const drawContextPolygon = (
+      polygon: [number, number][],
+      fill: string,
+      stroke: string,
+    ) => {
+      context.beginPath();
+      polygonPath(context, polygon, world);
+      context.fillStyle = fill;
+      context.fill();
+      context.strokeStyle = stroke;
+      context.lineWidth = 1.2 * ratio;
+      context.stroke();
+    };
+
+    drawContextPolygon(PLOT_3O, "#e1d6b6", "#9d9278");
+    drawContextPolygon(PLOT_3A_BEYOND_PATH, "#e9e1ca", "#aaa086");
 
     context.beginPath();
     polygonPath(context, EAST_PATH, world);
@@ -824,6 +895,51 @@ function PlantingCanvas({
     context.strokeStyle = "#315c40";
     context.lineWidth = 2.6 * ratio;
     context.stroke();
+
+    if (showShade) {
+      const renderShadow = (item: PlotObject, ownPlant: boolean) => {
+        if (item.height <= 0 || sun.elevation <= 0.3) return;
+        const shadow = shadowVector(item, sun);
+        const [startX, startY] = world(item.x, item.y);
+        const [endX, endY] = world(item.x + shadow.dx, item.y + shadow.dy);
+        const gradient = context.createLinearGradient(
+          startX,
+          startY,
+          endX,
+          endY,
+        );
+        gradient.addColorStop(
+          0,
+          ownPlant ? "rgba(105, 69, 38, .38)" : "rgba(39, 50, 43, .24)",
+        );
+        gradient.addColorStop(
+          1,
+          ownPlant ? "rgba(105, 69, 38, .13)" : "rgba(39, 50, 43, .08)",
+        );
+        context.save();
+        context.strokeStyle = gradient;
+        context.lineWidth = Math.max(
+          4 * ratio,
+          item.canopy * scale * (ownPlant ? 0.82 : 0.7),
+        );
+        context.lineCap = "round";
+        context.beginPath();
+        context.moveTo(startX, startY);
+        context.lineTo(endX, endY);
+        context.stroke();
+        context.restore();
+      };
+      plan.objects
+        .filter((item) => item.context)
+        .forEach((item) => renderShadow(item, false));
+      plantingObjects(plan.placements).forEach((item) =>
+        renderShadow(item, true),
+      );
+      if (sun.elevation <= 0.3) {
+        context.fillStyle = "rgba(35, 45, 58, .16)";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+      }
+    }
 
     if (plan.plannerSettings.accessPath) {
       ACCESS_PADS.forEach(([x, y], index) => {
@@ -875,6 +991,14 @@ function PlantingCanvas({
       context.fillText(crop.short, x, y);
     });
 
+    context.font = `700 ${9 * ratio}px ui-sans-serif`;
+    context.textAlign = "center";
+    context.fillStyle = "#756b54";
+    const [plot3OX, plot3OY] = world(2.25, -0.72);
+    context.fillText("PLOT 3O · HALF", plot3OX, plot3OY);
+    const [plot3AX, plot3AY] = world(6.25, 1.55);
+    context.fillText("PLOT 3A · HALF", plot3AX, plot3AY);
+
     const [northX, northY] = world(5.35, 4.3);
     context.fillStyle = "#20382a";
     context.font = `700 ${11 * ratio}px ui-sans-serif`;
@@ -911,7 +1035,7 @@ function PlantingCanvas({
     context.fillStyle = "#2d3c31";
     context.font = `${9 * ratio}px ui-monospace`;
     context.fillText("1 m", scaleX + scale / 2, scaleY - 10 * ratio);
-  }, [plan, selectedId]);
+  }, [plan, selectedId, showShade, sun]);
 
   useEffect(() => {
     draw();
@@ -928,9 +1052,10 @@ function PlantingCanvas({
     const screenY = ((event.clientY - rect.top) * canvas.height) / rect.height;
     const transform = transformRef.current;
     return {
-      x: (screenX - transform.left) / transform.scale - 0.45,
+      x: (screenX - transform.left) / transform.scale + transform.minX,
       y:
-        (canvas.height - transform.bottom - screenY) / transform.scale - 0.35,
+        (canvas.height - transform.bottom - screenY) / transform.scale +
+        transform.minY,
     };
   };
 
@@ -948,7 +1073,7 @@ function PlantingCanvas({
     <canvas
       ref={canvasRef}
       className="planting-canvas"
-      aria-label="Detailed planting plan for Plot 3P. Mature crop circles are drawn to scale and can be dragged."
+      aria-label="Detailed planting and shade plan for Plot 3P with partial context from plots 3O and 3A. Mature plant circles are drawn to scale and can be dragged."
       onPointerDown={(event) => {
         const point = pointFromEvent(event);
         const hit = hitTest(point);
@@ -1007,6 +1132,13 @@ export default function Home() {
     () => daylightSummary(date, plan.latitude, plan.longitude),
     [date, plan.latitude, plan.longitude],
   );
+  const neighbourPlantShade = useMemo(() => {
+    const objects = plantingObjects(plan.placements);
+    return {
+      plot3O: shadeCoveragePercent(objects, sun, PLOT_3O),
+      plot3A: shadeCoveragePercent(objects, sun, PLOT_3A_BEYOND_PATH),
+    };
+  }, [plan.placements, sun]);
 
   const updatePlan = useCallback((next: PlanData | ((old: PlanData) => PlanData)) => {
     setPlan(next);
@@ -1644,9 +1776,53 @@ export default function Home() {
                 </span>
               </div>
             </div>
+            <div className="planting-shade-controls">
+              <label className="shade-toggle">
+                <input
+                  type="checkbox"
+                  checked={plan.plannerSettings.showShade}
+                  onChange={(event) => {
+                    updatePlannerSettings({ showShade: event.target.checked });
+                    if (!event.target.checked) setPlaying(false);
+                  }}
+                />
+                Show plant shade
+              </label>
+              <input
+                aria-label="Shade model date"
+                type="date"
+                value={date}
+                disabled={!plan.plannerSettings.showShade}
+                onChange={(event) => setDate(event.target.value)}
+              />
+              <input
+                aria-label="Shade model local time"
+                className="shade-time-range"
+                type="range"
+                min="300"
+                max="1260"
+                step="5"
+                value={minutes}
+                disabled={!plan.plannerSettings.showShade}
+                onChange={(event) => setMinutes(Number(event.target.value))}
+              />
+              <button
+                disabled={!plan.plannerSettings.showShade}
+                onClick={() => setPlaying((value) => !value)}
+              >
+                {playing ? "Pause" : "Play"} · {formatTime(minutes)}
+              </button>
+              <span>
+                {sun.elevation > 0
+                  ? `${sun.elevation.toFixed(0)}° sun`
+                  : "Sun below horizon"}
+              </span>
+            </div>
             <div className="planting-canvas-wrap">
               <PlantingCanvas
                 plan={plan}
+                sun={sun}
+                showShade={plan.plannerSettings.showShade}
                 selectedId={selectedPlacementId}
                 onSelect={setSelectedPlacementId}
                 onMove={(id, x, y) =>
@@ -1658,10 +1834,39 @@ export default function Home() {
                   }))
                 }
               />
+              {plan.plannerSettings.showShade && (
+                <div className="neighbour-shade-card">
+                  <strong>Your plants’ shade now</strong>
+                  {sun.elevation <= 0.3 ? (
+                    <span>Night-time · move the time slider into daylight</span>
+                  ) : (
+                    <>
+                      <span
+                        className={
+                          neighbourPlantShade.plot3O >= 10 ? "warning" : ""
+                        }
+                      >
+                        3O {neighbourPlantShade.plot3O.toFixed(0)}%
+                      </span>
+                      <span
+                        className={
+                          neighbourPlantShade.plot3A >= 10 ? "warning" : ""
+                        }
+                      >
+                        3A {neighbourPlantShade.plot3A.toFixed(0)}%
+                      </span>
+                      <small>Amber at 10%+ of neighbour area</small>
+                    </>
+                  )}
+                </div>
+              )}
               <div className="planting-legend">
                 <span><i className="legend-fence" />6.6 m climbing fence</span>
                 <span><i className="legend-path" />Existing east path</span>
                 <span><i className="legend-step" />Suggested stepping access</span>
+                {plan.plannerSettings.showShade && (
+                  <span><i className="legend-plant-shade" />Your plant shade</span>
+                )}
               </div>
             </div>
           </section>

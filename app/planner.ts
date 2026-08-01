@@ -58,6 +58,7 @@ export type PlannerSettings = {
   showShade: boolean;
   showGrid: boolean;
   snapToGrid: boolean;
+  alignmentAssist: boolean;
   gridSize: number;
   filterByMonth: boolean;
   scenarioSeed: number;

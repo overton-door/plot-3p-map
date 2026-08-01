@@ -31,6 +31,16 @@ type PlotObject = {
   context?: boolean;
 };
 
+type GardenZone = {
+  id: string;
+  name: string;
+  purpose: string;
+  suitability: string;
+  color: string;
+  points: [number, number][];
+  locked: boolean;
+};
+
 type PlanData = {
   objects: PlotObject[];
   latitude: number;
@@ -38,6 +48,7 @@ type PlanData = {
   sourceNote: string;
   plantingRequests: PlantingRequest[];
   placements: PlantingPlacement[];
+  zones: GardenZone[];
   plannerSettings: PlannerSettings;
   layoutNotes: string[];
 };
@@ -83,6 +94,45 @@ const CONTEXT_TREES: PlotObject[] = [
   },
 ];
 
+const SUGGESTED_ZONES: GardenZone[] = [
+  {
+    id: "fence-rail",
+    name: "Climbing fence rail",
+    purpose: "Trellised fruiting crops",
+    suitability: "Uses the 6.6 m fence without taking open-bed space.",
+    color: "#b87545",
+    points: [[0.08, 0.07], [0.38, 0.07], [4.76, 4.16], [4.64, 4.43]],
+    locked: false,
+  },
+  {
+    id: "sun-core",
+    name: "Deep sun bed",
+    purpose: "Tomatoes, capsicums, squash",
+    suitability: "Open lower bed with the clearest peak-season sun.",
+    color: "#d89544",
+    points: [[0.42, 0.16], [3.88, 0.16], [4.0, 1.0], [1.12, 1.0]],
+    locked: false,
+  },
+  {
+    id: "mid-bed",
+    name: "Reachable grid bed",
+    purpose: "Rows, blocks, quick crops",
+    suitability: "Central, accessible area suited to intensive planting grids.",
+    color: "#79a16a",
+    points: [[1.38, 1.22], [4.04, 1.22], [4.22, 2.28], [2.46, 2.28]],
+    locked: false,
+  },
+  {
+    id: "perennial-edge",
+    name: "Perennial edge",
+    purpose: "Asparagus, herbs, rhubarb",
+    suitability: "Keeps long-lived plants legible and reachable from the path.",
+    color: "#8170a6",
+    points: [[4.05, 0.28], [4.27, 0.28], [4.62, 2.98], [4.42, 2.98]],
+    locked: false,
+  },
+];
+
 const DEFAULT_PLAN: PlanData = {
   objects: CONTEXT_TREES,
   latitude: -37.766,
@@ -91,6 +141,7 @@ const DEFAULT_PLAN: PlanData = {
     "Triangular Plot 3P Half re-measured from Community Garden Layout 6.2026. Its 6.6 m diagonal edge is the perimeter fence, its east side abuts an approximately 0.8 m access path, and tree heights remain editable assumptions.",
   plantingRequests: [],
   placements: [],
+  zones: [],
   plannerSettings: {
     month: new Date().getMonth() + 1,
     density: "intensive",
@@ -100,6 +151,7 @@ const DEFAULT_PLAN: PlanData = {
     showShade: true,
     showGrid: true,
     snapToGrid: false,
+    alignmentAssist: true,
     gridSize: 0.25,
     filterByMonth: false,
     scenarioSeed: 0,
@@ -448,6 +500,7 @@ function normalisePlan(value: Partial<PlanData> | undefined): PlanData {
     ...value,
     objects: value.objects?.length ? value.objects : DEFAULT_PLAN.objects,
     plantingRequests: value.plantingRequests ?? [],
+    zones: value.zones ?? [],
     placements: (value.placements ?? []).map((placement) => ({
       ...placement,
       status: placement.status ?? "planned",
@@ -827,6 +880,7 @@ function PlantingCanvas({
   sun,
   shadeMonth,
   showShade,
+  detailZoom,
   selectedIds,
   onSelectionChange,
   onMoveMany,
@@ -836,6 +890,7 @@ function PlantingCanvas({
   sun: SolarPosition;
   shadeMonth: number;
   showShade: boolean;
+  detailZoom: number;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
   onMoveMany: (updates: { id: string; x: number; y: number }[]) => void;
@@ -845,6 +900,10 @@ function PlantingCanvas({
   const [selectionBox, setSelectionBox] = useState<{
     start: { x: number; y: number };
     end: { x: number; y: number };
+  } | null>(null);
+  const [alignmentGuide, setAlignmentGuide] = useState<{
+    x?: number;
+    y?: number;
   } | null>(null);
   const dragRef = useRef<
     | {
@@ -876,14 +935,14 @@ function PlantingCanvas({
     const ratio = Math.min(2, window.devicePixelRatio || 1);
     canvas.width = Math.max(680, rect.width * ratio);
     canvas.height = Math.max(620, rect.height * ratio);
-    const minX = -0.45;
-    const minY = -1.25;
+    const minX = 2.25 - 3.575 / detailZoom;
+    const minY = 1.75 - 3.175 / detailZoom;
     const viewWidth = 7.15;
     const viewHeight = 6.35;
     const scale = Math.min(
       (canvas.width - 70 * ratio) / viewWidth,
       (canvas.height - 70 * ratio) / viewHeight,
-    );
+    ) * detailZoom;
     const left = (canvas.width - viewWidth * scale) / 2;
     const bottom = (canvas.height - viewHeight * scale) / 2;
     transformRef.current = { left, bottom, scale, minX, minY };
@@ -895,26 +954,6 @@ function PlantingCanvas({
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.fillStyle = "#f4f0e5";
     context.fillRect(0, 0, canvas.width, canvas.height);
-
-    if (plan.plannerSettings.showGrid) {
-      for (let metre = -1.25; metre <= 6.75; metre += 0.25) {
-        const major = Math.abs(metre - Math.round(metre)) < 0.01;
-        context.strokeStyle = major
-          ? "rgba(47, 67, 50, .17)"
-          : "rgba(47, 67, 50, .075)";
-        context.lineWidth = major ? 1.2 * ratio : 0.7 * ratio;
-        const [verticalX] = world(metre, 0);
-        const [, horizontalY] = world(0, metre);
-        context.beginPath();
-        context.moveTo(verticalX, world(0, minY)[1]);
-        context.lineTo(verticalX, world(0, 5.1)[1]);
-        context.stroke();
-        context.beginPath();
-        context.moveTo(world(minX, 0)[0], horizontalY);
-        context.lineTo(world(6.7, 0)[0], horizontalY);
-        context.stroke();
-      }
-    }
 
     const drawContextPolygon = (
       polygon: [number, number][],
@@ -948,6 +987,76 @@ function PlantingCanvas({
     context.strokeStyle = "#315c40";
     context.lineWidth = 2.6 * ratio;
     context.stroke();
+
+    if (plan.plannerSettings.showGrid) {
+      const fineStep = scale * 0.1 >= 14 ? 0.1 : 0.25;
+      context.save();
+      context.beginPath();
+      polygonPath(context, PLOT_3P, world);
+      context.clip();
+      for (let metre = -1; metre <= 6; metre += fineStep) {
+        const onQuarter = Math.abs((metre / 0.25) - Math.round(metre / 0.25)) < 0.01;
+        const onMetre = Math.abs(metre - Math.round(metre)) < 0.01;
+        context.strokeStyle = onMetre
+          ? "rgba(47, 67, 50, .25)"
+          : onQuarter
+            ? "rgba(47, 67, 50, .14)"
+            : "rgba(47, 67, 50, .07)";
+        context.lineWidth = onMetre ? 1.15 * ratio : 0.65 * ratio;
+        const [verticalX] = world(metre, 0);
+        const [, horizontalY] = world(0, metre);
+        context.beginPath();
+        context.moveTo(verticalX, 0);
+        context.lineTo(verticalX, canvas.height);
+        context.stroke();
+        context.beginPath();
+        context.moveTo(0, horizontalY);
+        context.lineTo(canvas.width, horizontalY);
+        context.stroke();
+      }
+      if (alignmentGuide?.x !== undefined) {
+        const [guideX] = world(alignmentGuide.x, 0);
+        context.strokeStyle = "rgba(216, 95, 56, .8)";
+        context.lineWidth = 1.4 * ratio;
+        context.beginPath();
+        context.moveTo(guideX, 0);
+        context.lineTo(guideX, canvas.height);
+        context.stroke();
+      }
+      if (alignmentGuide?.y !== undefined) {
+        const [, guideY] = world(0, alignmentGuide.y);
+        context.strokeStyle = "rgba(216, 95, 56, .8)";
+        context.lineWidth = 1.4 * ratio;
+        context.beginPath();
+        context.moveTo(0, guideY);
+        context.lineTo(canvas.width, guideY);
+        context.stroke();
+      }
+      context.restore();
+    }
+
+    plan.zones.forEach((zone) => {
+      context.save();
+      context.beginPath();
+      polygonPath(context, zone.points, world);
+      context.fillStyle = `${zone.color}20`;
+      context.fill();
+      context.strokeStyle = `${zone.color}a8`;
+      context.lineWidth = zone.locked ? 2 * ratio : 1.2 * ratio;
+      context.setLineDash(zone.locked ? [] : [5 * ratio, 4 * ratio]);
+      context.stroke();
+      context.setLineDash([]);
+      const centre = zone.points.reduce(
+        (sum, [x, y]) => [sum[0] + x / zone.points.length, sum[1] + y / zone.points.length],
+        [0, 0],
+      );
+      const [labelX, labelY] = world(centre[0], centre[1]);
+      context.fillStyle = "#36423a";
+      context.font = `700 ${Math.max(8, 9 * detailZoom) * ratio}px ui-sans-serif`;
+      context.textAlign = "center";
+      context.fillText(zone.name.toUpperCase(), labelX, labelY);
+      context.restore();
+    });
 
     if (showShade) {
       const renderShadow = (item: PlotObject, ownPlant: boolean) => {
@@ -1117,7 +1226,7 @@ function PlantingCanvas({
     context.fillStyle = "#2d3c31";
     context.font = `${9 * ratio}px ui-monospace`;
     context.fillText("1 m", scaleX + scale / 2, scaleY - 10 * ratio);
-  }, [plan, selectedIds, selectionBox, shadeMonth, showShade, sun]);
+  }, [alignmentGuide, detailZoom, plan, selectedIds, selectionBox, shadeMonth, showShade, sun]);
 
   useEffect(() => {
     draw();
@@ -1206,13 +1315,32 @@ function PlantingCanvas({
           setSelectionBox({ start: drag.pointerStart, end: point });
           return;
         }
-        const snap = plan.plannerSettings.snapToGrid
-          ? plan.plannerSettings.gridSize
-          : 0.05;
-        const dx =
-          Math.round((point.x - drag.pointerStart.x) / snap) * snap;
-        const dy =
-          Math.round((point.y - drag.pointerStart.y) / snap) * snap;
+        const rawDx = point.x - drag.pointerStart.x;
+        const rawDy = point.y - drag.pointerStart.y;
+        const base = drag.positions[0];
+        const gridSize = plan.plannerSettings.gridSize;
+        const align = (value: number) => {
+          const nearest = Math.round(value / gridSize) * gridSize;
+          if (plan.plannerSettings.snapToGrid) {
+            return { value: nearest, guide: nearest };
+          }
+          if (
+            plan.plannerSettings.alignmentAssist &&
+            Math.abs(nearest - value) <= Math.min(0.08, gridSize * 0.32)
+          ) {
+            return { value: nearest, guide: nearest };
+          }
+          return { value, guide: undefined };
+        };
+        const alignedX = align(base.x + rawDx);
+        const alignedY = align(base.y + rawDy);
+        const dx = alignedX.value - base.x;
+        const dy = alignedY.value - base.y;
+        setAlignmentGuide(
+          alignedX.guide === undefined && alignedY.guide === undefined
+            ? null
+            : { x: alignedX.guide, y: alignedY.guide },
+        );
         const updates = drag.positions.map((position) => ({
           id: position.id,
           x: Math.round((position.x + dx) * 100) / 100,
@@ -1251,11 +1379,13 @@ function PlantingCanvas({
         }
         dragRef.current = null;
         setSelectionBox(null);
+        setAlignmentGuide(null);
       }}
       onPointerCancel={(event) => {
         canvasRef.current?.releasePointerCapture(event.pointerId);
         dragRef.current = null;
         setSelectionBox(null);
+        setAlignmentGuide(null);
       }}
     />
   );
@@ -1270,6 +1400,7 @@ export default function Home() {
   const [date, setDate] = useState(todayMelbourne);
   const [minutes, setMinutes] = useState(720);
   const [zoom, setZoom] = useState(1);
+  const [plantingZoom, setPlantingZoom] = useState(1);
   const [playing, setPlaying] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -1559,12 +1690,15 @@ export default function Home() {
     if (movable.length < 2) return;
     const densityFactor =
       plan.plannerSettings.density === "intensive" ? 0.8 : 1;
-    const pitch =
+    const rawPitch =
       Math.max(
         ...movable.map(
           (placement) => CROP_BY_ID[placement.cropId].spacing * densityFactor,
         ),
       );
+    const pitch =
+      Math.ceil(rawPitch / plan.plannerSettings.gridSize) *
+      plan.plannerSettings.gridSize;
     const centre = movable.reduce(
       (sum, placement) => ({
         x: sum.x + placement.x / movable.length,
@@ -1632,8 +1766,14 @@ export default function Home() {
       for (const [dx, dy] of offsets) {
         const candidate = pattern.map((point) => ({
           ...point,
-          x: Math.round((point.x + dx) * 100) / 100,
-          y: Math.round((point.y + dy) * 100) / 100,
+          x:
+            Math.round(
+              ((point.x + dx) / plan.plannerSettings.gridSize),
+            ) * plan.plannerSettings.gridSize,
+          y:
+            Math.round(
+              ((point.y + dy) / plan.plannerSettings.gridSize),
+            ) * plan.plannerSettings.gridSize,
         }));
         if (isValid(candidate)) {
           fitted = candidate;
@@ -1680,6 +1820,26 @@ export default function Home() {
           ? { ...placement, x, y }
           : placement;
       }),
+    }));
+  };
+
+  const suggestGardenZones = () => {
+    updatePlan((current) => ({
+      ...current,
+      zones: SUGGESTED_ZONES.map((zone) => ({ ...zone })),
+      layoutNotes: [
+        "Suggested zones use peak-season sun, access from the east path, the climbing fence and perennial permanence.",
+        ...current.layoutNotes,
+      ],
+    }));
+  };
+
+  const toggleZoneLock = (zoneId: string) => {
+    updatePlan((current) => ({
+      ...current,
+      zones: current.zones.map((zone) =>
+        zone.id === zoneId ? { ...zone, locked: !zone.locked } : zone,
+      ),
     }));
   };
 
@@ -2259,22 +2419,36 @@ export default function Home() {
                   : "Drag a box to select plants · Shift-click to add"}
               </span>
               <button
+                aria-label="Zoom planting grid out"
+                disabled={plantingZoom <= 1}
+                onClick={() => setPlantingZoom((value) => Math.max(1, value - 0.25))}
+              >
+                − Grid
+              </button>
+              <button
+                aria-label="Zoom planting grid in"
+                disabled={plantingZoom >= 2.5}
+                onClick={() => setPlantingZoom((value) => Math.min(2.5, value + 0.25))}
+              >
+                + Grid
+              </button>
+              <button
                 disabled={selectedPlacements.length < 2}
                 onClick={() => arrangeSelection("row")}
               >
-                Place in row
+                Grid row
               </button>
               <button
                 disabled={selectedPlacements.length < 2}
                 onClick={() => arrangeSelection("block")}
               >
-                Form block
+                Grid block
               </button>
               <button
                 disabled={selectedPlacements.length === 0}
                 onClick={snapSelectionToGrid}
               >
-                Snap selection
+                Align selection
               </button>
               <button
                 disabled={selectedPlacements.length === 0}
@@ -2289,6 +2463,7 @@ export default function Home() {
                 sun={sun}
                 shadeMonth={Number(date.slice(5, 7)) || 1}
                 showShade={plan.plannerSettings.showShade}
+                detailZoom={plantingZoom}
                 selectedIds={selectedPlacementIds}
                 onSelectionChange={setSelectedPlacementIds}
                 onGestureStart={pushUndo}
@@ -2539,9 +2714,52 @@ export default function Home() {
                     })
                   }
                 />
-                Snap dragging to grid
+                Lock dragging to grid
+              </label>
+              <label className="check-row">
+                <input
+                  type="checkbox"
+                  checked={plan.plannerSettings.alignmentAssist}
+                  onChange={(event) =>
+                    updatePlannerSettings({ alignmentAssist: event.target.checked })
+                  }
+                />
+                Gently guide into rows / blocks
               </label>
             </div>
+
+            <section className="zone-planner" aria-labelledby="zone-heading">
+              <div className="zone-heading">
+                <div>
+                  <small>Garden structure</small>
+                  <h3 id="zone-heading">Planting zones</h3>
+                </div>
+                <button onClick={suggestGardenZones}>
+                  {plan.zones.length ? "Refresh suggestions" : "Suggest zones"}
+                </button>
+              </div>
+              {plan.zones.length ? (
+                <div className="zone-list">
+                  {plan.zones.map((zone) => (
+                    <div className="zone-row" key={zone.id}>
+                      <i style={{ background: zone.color }} />
+                      <div>
+                        <strong>{zone.name}</strong>
+                        <small>{zone.purpose}</small>
+                        <span>{zone.suitability}</span>
+                      </div>
+                      <button onClick={() => toggleZoneLock(zone.id)}>
+                        {zone.locked ? "Locked" : "Lock"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="zone-empty">
+                  Start with a suitability-led structure, then lock each zone once it feels right.
+                </p>
+              )}
+            </section>
 
             <button
               className="generate-button"

@@ -1,78 +1,16 @@
-import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
-import test from "node:test";
-
-const root = new URL("../", import.meta.url);
-
-test("ships the scaled Plot 3P editor and Melbourne solar controls", async () => {
-  const [page, planner, layout] = await Promise.all([
-    readFile(new URL("app/page.tsx", root), "utf8"),
-    readFile(new URL("app/planner.ts", root), "utf8"),
-    readFile(new URL("app/layout.tsx", root), "utf8"),
-  ]);
-
-  assert.match(planner, /const PLOT_3P/);
-  assert.match(page, /FENCE · 6\.6 m · CLIMBING SUPPORT/);
-  assert.match(planner, /const PLOT_3O/);
-  assert.match(planner, /const EAST_PATH/);
-  assert.match(planner, /PLOT_3A_BEYOND_PATH/);
-  assert.match(page, /solarPosition/);
-  assert.match(page, /Australia\/Melbourne/);
-  assert.match(page, /Play through day/);
-  assert.match(page, /Export JSON/);
-  assert.match(page, /Generate planting guide/);
-  assert.match(planner, /generateLayout/);
-  assert.match(planner, /interplant/);
-  assert.match(planner, /ACCESS_PADS/);
-  assert.match(planner, /id: "dahlia"/);
-  assert.match(planner, /id: "sunflower"/);
-  assert.match(planner, /id: "zinnia"/);
-  assert.match(planner, /id: "poppy"/);
-  assert.match(page, /Choose vegetables & flowers/);
-  assert.match(page, /Show plant shade/);
-  assert.match(page, /Your plants’ shade now/);
-  assert.match(page, /shadeCoveragePercent/);
-  assert.match(page, /Amber at 10%\+ of neighbour area/);
-  assert.match(planner, /shadeCostAt/);
-  assert.match(planner, /Optimisation order: peak-season sunlight/);
-  assert.match(planner, /id: "asparagus"/);
-  assert.match(planner, /id: "rhubarb"/);
-  assert.match(planner, /id: "globe-artichoke"/);
-  assert.match(planner, /perennial: true/);
-  assert.match(planner, /peakMonthForCrop/);
-  assert.match(planner, /fixedPlacements/);
-  assert.match(planner, /sunlightFit \* 1_000_000/);
-  assert.match(planner, /scenarioSeed/);
-  assert.match(page, /Only show plants for this month/);
-  assert.match(page, /Optimise whole patch/);
-  assert.match(page, /Optimise selection/);
-  assert.match(page, /Grid row/);
-  assert.match(page, /Grid block/);
-  assert.match(page, /Gently guide into rows \/ blocks/);
-  assert.match(page, /Suggest zones/);
-  assert.match(page, /Deep sun bed/);
-  assert.match(page, /Climbing fence rail/);
-  assert.match(page, /detailZoom/);
-  assert.match(page, /Drag a box to select plants/);
-  assert.match(page, /Lock dragging to grid/);
-  assert.match(page, /↶ Undo/);
-  assert.match(planner, /showGrid: boolean/);
-  assert.match(planner, /snapToGrid: boolean/);
-  assert.match(planner, /alignmentAssist: boolean/);
-  assert.match(page, /Mark as planted/);
-  assert.match(page, /Lock position/);
-  assert.match(layout, /Plot 3P · Intelligent planting planner/);
-  assert.doesNotMatch(page + planner + layout, /codex-preview|SkeletonPreview/);
-});
-
-test("supports static GitHub Pages export and on-device persistence", async () => {
-  const [config, page] = await Promise.all([
-    readFile(new URL("next.config.ts", root), "utf8"),
-    readFile(new URL("app/page.tsx", root), "utf8"),
-  ]);
-
-  assert.match(config, /output: isGitHubPages \? "export" : undefined/);
-  assert.match(config, /plot-3p-map/);
-  assert.match(page, /localStorage/);
-  assert.match(page, /plot-3p-plan-v2/);
-});
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import ts from 'typescript';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+const temp=fs.mkdtempSync(path.join(os.tmpdir(),'plot3k-tests-'));
+for(const file of ['planner','plot3k'])fs.writeFileSync(path.join(temp,file+'.js'),ts.transpileModule(fs.readFileSync(new URL('../app/'+file+'.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true}}).outputText);
+fs.copyFileSync(new URL('../app/seed-catalog.json',import.meta.url),path.join(temp,'seed-catalog.json'));
+const require=createRequire(import.meta.url),{initialPlan,SEEDS,rowLayout,points,makeBlock,blockErrors,validatePlan,shareEncode,shareDecode}=require(path.join(temp,'plot3k.js'));
+test('invoices reconcile to 28 entries and 27 unique purchased plants',()=>{const bought=SEEDS.filter(c=>c.packets);assert.equal(bought.length,27);assert.equal(bought.reduce((n,c)=>n+c.packets,0),28);assert.equal(bought.find(c=>c.id==='echinacea').sources.length,2);assert.equal(bought.filter(c=>c.method==='Tuber').length,2);assert(bought.every(c=>c.sources.length));});
+test('rows use independent plant and row pitch, all points stay inside footprint',()=>{const b={x:0,y:0,width:100,length:100,rowSpacing:50,spacing:10,direction:'length'};assert.deepEqual(rowLayout(b),{rows:2,perRow:10,count:20});assert(points(b).every(p=>p.x>=25&&p.x<=75&&p.y>=5&&p.y<=95));assert.deepEqual(rowLayout({...b,direction:'across',length:60}),{rows:1,perRow:10,count:10});});
+test('proposals preserve paths and do not collide, purchased tubers produce one position',()=>{const p=structuredClone(initialPlan);for(const id of ['cafe','teddy','echinacea','green-wizard','lime','salmon','peach','beetroot','cherokee','roma','holy-basil','chives']){const b=makeBlock(id,p);assert(b, id+' fits');assert.deepEqual(blockErrors(b,p),[]);p.blocks.push(b);if(['cafe','teddy'].includes(id))assert.equal(rowLayout(b).count,1);}assert.equal(p.blocks.length,12);assert.deepEqual(validatePlan(p),p);});
+test('overlap, out of bounds and impossible spacing are surfaced',()=>{const p=structuredClone(initialPlan);const b=makeBlock('lime',p);p.blocks.push(b);assert(blockErrors({...b,id:'copy'},p).includes('Overlaps another active block'));assert(blockErrors({...b,x:100},p).includes('Outside the growing bed'));assert(blockErrors({...b,rowSpacing:200},p).includes('No plants fit at this spacing'));});
+test('snapshot round trip preserves Unicode and row completion; malformed imports fail',()=>{const p=structuredClone(initialPlan);const b=makeBlock('lime',p);p.blocks=[{...b,notes:'Partner’s 🌱 row',doneRows:[0]}];assert.deepEqual(shareDecode(shareEncode(p)),p);assert.throws(()=>validatePlan({...p,version:2}));assert.throws(()=>validatePlan({...p,blocks:[{...b,spacing:0}]}));assert.throws(()=>validatePlan({...p,blocks:[{...b,cropId:'missing'}]}));});

@@ -1,0 +1,835 @@
+[
+  {
+    "id": "echinacea",
+    "name": "Echinacea · Pale Purple Coneflower",
+    "side": "flowers",
+    "life": "Perennial",
+    "spacing": 50,
+    "rowSpacing": 50,
+    "height": 100,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "1 mm",
+    "germination": "10–28 days; supplier ranges 18–25°C",
+    "days": "90–110",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/Echinacea-Pale-Purple-Coneflower"
+      },
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/echinacea-pallida-flower-seeds-available-at-the-end-of-the-week"
+      }
+    ],
+    "notes": "Both orders are Echinacea pallida. Keep batches labelled; suppliers give different germination temperatures. Needs light; cold stratification may help.",
+    "packets": 2,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14",
+    "inventoryNote": "1 Seed Collection packet (count not on invoice) + 40 seeds from VFGS"
+  },
+  {
+    "id": "green-wizard",
+    "name": "Rudbeckia · Green Wizard",
+    "side": "flowers",
+    "life": "Perennial",
+    "spacing": 50,
+    "rowSpacing": 50,
+    "height": 120,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "1 mm",
+    "germination": "14–21 days at 13–16°C",
+    "days": "120",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/rudbeckia-green-wizard"
+      }
+    ],
+    "notes": "Permanent clump; divide every 3–5 years. Tolerates part sun.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "sahara",
+    "name": "Black Eyed Susan · Sahara",
+    "side": "flowers",
+    "life": "Short-lived perennial",
+    "spacing": 50,
+    "rowSpacing": 50,
+    "height": 50,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "1 mm",
+    "germination": "7–14 days at 20–22°C",
+    "days": "95–110",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/black-eyed-susan-sahara"
+      }
+    ],
+    "notes": "Often grown as an annual in cool climates; review survival after winter.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "dara",
+    "name": "Chocolate Queen Anne’s Lace · Dara",
+    "side": "flowers",
+    "life": "Biennial grown as annual",
+    "spacing": 15,
+    "rowSpacing": 15,
+    "height": 160,
+    "months": [
+      1,
+      2,
+      3,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Direct",
+    "depth": "5 mm",
+    "germination": "14–21 days at 10–30°C",
+    "days": "90–110",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/Chocolate-Queen-Annes-Lace-Dara"
+      }
+    ],
+    "notes": "Tall stems: use an outer block and support if needed.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "cafe",
+    "name": "Dahlia · Cafe au Lait",
+    "side": "flowers",
+    "life": "Tuber perennial",
+    "spacing": 40,
+    "rowSpacing": 40,
+    "height": 120,
+    "months": [
+      9,
+      10,
+      11
+    ],
+    "method": "Tuber",
+    "depth": "10–15 cm hole, eye upwards",
+    "germination": "Plant after frost risk; well-drained soil",
+    "days": "90–120",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/dahlia-cafe-au-lait-tuber"
+      },
+      {
+        "supplier": "The Seed Collection · tuber planting",
+        "url": "https://www.theseedcollection.com.au/growguide/dahlia-tubers"
+      }
+    ],
+    "notes": "Plant horizontally after frost risk, eye upwards. Stake at planting. Unless soil is very dry, wait to water until shoots reach about 15 cm. Reserve the position; lift for winter if soil stays wet.",
+    "packets": 1,
+    "seedCount": 1,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "teddy",
+    "name": "Dahlia · Teddy Bear",
+    "side": "flowers",
+    "life": "Tuber perennial",
+    "spacing": 40,
+    "rowSpacing": 40,
+    "height": 120,
+    "months": [
+      9,
+      10,
+      11
+    ],
+    "method": "Tuber",
+    "depth": "10–15 cm hole, eye upwards",
+    "germination": "Plant after frost risk; well-drained soil",
+    "days": "90–120",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/dahlia-teddy-bear-tuber"
+      },
+      {
+        "supplier": "The Seed Collection · tuber planting",
+        "url": "https://www.theseedcollection.com.au/growguide/dahlia-tubers"
+      }
+    ],
+    "notes": "Plant horizontally after frost risk, eye upwards. Stake at planting. Unless soil is very dry, wait to water until shoots reach about 15 cm. Reserve the position; lift for winter if soil stays wet.",
+    "packets": 1,
+    "seedCount": 1,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "lime",
+    "name": "Zinnia · Benary’s Giant Lime",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 25,
+    "rowSpacing": 25,
+    "height": 100,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "6 mm",
+    "germination": "7–14 days at 20–25°C",
+    "days": "80–90",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/zinnia-benarys-giant-lime-p"
+      }
+    ],
+    "notes": "Warm-season sowing. Harden off seedlings; plant outside after frost risk. Water soil rather than foliage.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "salmon",
+    "name": "Zinnia · Oklahoma Salmon",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 25,
+    "rowSpacing": 25,
+    "height": 90,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "6 mm",
+    "germination": "7–14 days at 20–25°C",
+    "days": "80–90",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/zinnia-oklahoma-salmon-p"
+      }
+    ],
+    "notes": "Warm-season sowing. Harden off seedlings; plant outside after frost risk. Water soil rather than foliage.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "burpeeana",
+    "name": "Zinnia · Burpeeana Mix",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 90,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "6 mm",
+    "germination": "7–10 days at 21–29°C",
+    "days": "90",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/zinnia-burpeeana-mix"
+      }
+    ],
+    "notes": "Warm-season sowing. Harden off seedlings; plant outside after frost risk. Water soil rather than foliage.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "peach",
+    "name": "Zinnia · Zinderella Peach",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 20,
+    "rowSpacing": 20,
+    "height": 70,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "6 mm",
+    "germination": "7–14 days at 21–29°C",
+    "days": "90",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/zinnia-zinderella-peach-p"
+      }
+    ],
+    "notes": "Warm-season sowing. Harden off seedlings; plant outside after frost risk. Water soil rather than foliage.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "holy-basil",
+    "name": "Holy Basil · Red",
+    "side": "food",
+    "life": "Annual",
+    "spacing": 40,
+    "rowSpacing": 40,
+    "height": 60,
+    "months": [
+      1,
+      2,
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays",
+    "depth": "1 mm",
+    "germination": "8–14 days at 21–23°C",
+    "days": "100–110",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/holy-basil-red"
+      }
+    ],
+    "notes": "Keep warm. Pick regularly and remove flower buds for continued leaf growth.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "dill",
+    "name": "Dill · Tetra",
+    "side": "food",
+    "life": "Annual",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 100,
+    "months": [
+      1,
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Direct",
+    "depth": "2 mm",
+    "germination": "7–21 days at 18–22°C",
+    "days": "60 leaf / 100 seed",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/dill-tetra"
+      }
+    ],
+    "notes": "Keep a grouped outer row; can also supply bouquet foliage.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "broccoli",
+    "name": "Broccoli · Purple Sprouting",
+    "side": "food",
+    "life": "Biennial grown as annual",
+    "spacing": 50,
+    "rowSpacing": 60,
+    "height": 90,
+    "months": [
+      1,
+      2,
+      3,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "5 mm",
+    "germination": "3–7 days at 8–30°C",
+    "days": "130–200",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/Broccoli-Purple-Sprouting"
+      }
+    ],
+    "notes": "Long occupation: plan after a summer crop. Height 90 cm is a planning estimate; supplier does not specify it.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "cherokee",
+    "name": "Bush Bean · Cherokee Wax",
+    "side": "food",
+    "life": "Annual",
+    "spacing": 10,
+    "rowSpacing": 50,
+    "height": 50,
+    "months": [
+      1,
+      10,
+      11,
+      12
+    ],
+    "method": "Direct",
+    "depth": "20 mm",
+    "germination": "6–10 days at 16–30°C",
+    "days": "55–60",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/Bean-Cherokee-Wax"
+      }
+    ],
+    "notes": "Sow into warm soil after frost risk. Height is a planning estimate. Keep full row spacing when packing a dense block.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "kentucky",
+    "name": "Climbing Bean · Kentucky Wonder Pole",
+    "side": "food",
+    "life": "Annual",
+    "spacing": 15,
+    "rowSpacing": 100,
+    "height": 200,
+    "months": [
+      1,
+      10,
+      11,
+      12
+    ],
+    "method": "Direct",
+    "depth": "20 mm",
+    "germination": "7–14 days at 18–26°C",
+    "days": "65–75",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/climbing-bean-kentucky-wonder-p"
+      }
+    ],
+    "notes": "Sow into warm soil after frost risk. Height is a planning estimate. Needs its own trellis; do not assume a boundary support exists.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "roma",
+    "name": "Dwarf Bean · Roma 2",
+    "side": "food",
+    "life": "Annual",
+    "spacing": 10,
+    "rowSpacing": 50,
+    "height": 50,
+    "months": [
+      1,
+      10,
+      11,
+      12
+    ],
+    "method": "Direct",
+    "depth": "20 mm",
+    "germination": "6–10 days at 16–30°C",
+    "days": "60",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/dwarf-bean-roma-2-p"
+      }
+    ],
+    "notes": "Sow into warm soil after frost risk. Height is a planning estimate. Keep full row spacing when packing a dense block.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "chives",
+    "name": "Chives",
+    "side": "food",
+    "life": "Perennial",
+    "spacing": 15,
+    "rowSpacing": 15,
+    "height": 25,
+    "months": [
+      1,
+      2,
+      3,
+      10,
+      11,
+      12
+    ],
+    "method": "Direct",
+    "depth": "5 mm",
+    "germination": "7–14 days at 18–21°C",
+    "days": "60–90",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/Chives"
+      }
+    ],
+    "notes": "Permanent low clumps suit the path edge.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "poppy",
+    "name": "Poppy · Amazing Grey",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 80,
+    "months": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "method": "Direct",
+    "depth": "3 mm",
+    "germination": "14–21 days at 16–24°C",
+    "days": "80",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/poppy-amazing-grey"
+      }
+    ],
+    "notes": "Reserve for late summer/autumn sowing; the supplier’s cool-climate calendar does not recommend September.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "garnet",
+    "name": "Sunflower · Garnet F1",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 150,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "10 mm",
+    "germination": "7–14 days at 21–30°C",
+    "days": "75–80",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/sunflower-garnet-f1-p"
+      }
+    ],
+    "notes": "Branched sunflower. Supplier description gives 130–150 cm; allow the upper height.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "beetroot",
+    "name": "Beetroot · Chioggia",
+    "side": "food",
+    "life": "Annual crop",
+    "spacing": 15,
+    "rowSpacing": 15,
+    "height": 35,
+    "months": [
+      1,
+      2,
+      3,
+      4,
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Direct",
+    "depth": "10 mm",
+    "germination": "5–10 days at 10–30°C",
+    "days": "60–65",
+    "sources": [
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/beetroot-chioggia-seed"
+      }
+    ],
+    "notes": "35 cm foliage is a planning estimate for root harvest. Supplier lists 90 cm, likely including seed stalks; do not use that to place harvested beetroot at the tall edge.",
+    "packets": 1,
+    "seedCount": 80,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "scabiosa",
+    "name": "Scabiosa · Tall Double Mix",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 90,
+    "months": [
+      2,
+      3,
+      4,
+      9,
+      10,
+      11
+    ],
+    "method": "Trays or direct",
+    "depth": "5 mm; barely cover",
+    "germination": "10–20 days at 18–21°C",
+    "days": "Not specified",
+    "sources": [
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/pincushion-scabiosa-tall-double-flower-mix-seeds"
+      }
+    ],
+    "notes": "Light aids germination.",
+    "packets": 1,
+    "seedCount": 50,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "amaranth-red",
+    "name": "Amaranthus · Love Lies Bleeding Red",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 60,
+    "rowSpacing": 60,
+    "height": 120,
+    "months": [
+      9,
+      10,
+      11
+    ],
+    "method": "Trays or direct",
+    "depth": "3 mm",
+    "germination": "7–10 days at 21–24°C",
+    "days": "65–75",
+    "sources": [
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/amaranthus-love-lies-bleeding-red-flower-seeds"
+      }
+    ],
+    "notes": "Allow room for trailing tassels; keep them clear of the plank.",
+    "packets": 1,
+    "seedCount": 100,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "amaranth-green",
+    "name": "Amaranthus · Weeping Green",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 60,
+    "rowSpacing": 60,
+    "height": 60,
+    "months": [
+      9,
+      10,
+      11
+    ],
+    "method": "Trays or direct",
+    "depth": "3 mm",
+    "germination": "7–10 days at 20–25°C",
+    "days": "65–75",
+    "sources": [
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/amaranthus-love-lies-bleeding-green-flower-seeds"
+      }
+    ],
+    "notes": "Moist soil; plant outside after frost risk.",
+    "packets": 1,
+    "seedCount": 100,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "mexican-hat",
+    "name": "Mexican Hat",
+    "side": "flowers",
+    "life": "Perennial",
+    "spacing": 40,
+    "rowSpacing": 40,
+    "height": 80,
+    "months": [
+      9,
+      10,
+      11
+    ],
+    "method": "Trays or direct",
+    "depth": "2 mm",
+    "germination": "20–40 days at 20–30°C",
+    "days": "Not specified",
+    "sources": [
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/ratibida-columnifera-mexican-hat-flower-seed"
+      }
+    ],
+    "notes": "Height 80 cm is a planning estimate; supplier does not specify it. Needs well-drained soil.",
+    "packets": 1,
+    "seedCount": 100,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "triloba",
+    "name": "Rudbeckia · Triloba",
+    "side": "flowers",
+    "life": "Perennial",
+    "spacing": 40,
+    "rowSpacing": 40,
+    "height": 150,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays",
+    "depth": "Surface; very light cover",
+    "germination": "7–14 days at 20–22°C",
+    "days": "100–120",
+    "sources": [
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/rudbeckia-triloba-flower-x-30-seeds"
+      }
+    ],
+    "notes": "Chill seed for 30 days before sowing. Light needed; bottom water or mist. No pinching needed.",
+    "packets": 1,
+    "seedCount": 30,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "cosmos",
+    "name": "Cosmos · Peachy Lemon Mix",
+    "side": "flowers",
+    "life": "Annual",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 100,
+    "months": [
+      9,
+      10,
+      11,
+      12
+    ],
+    "method": "Trays",
+    "depth": "6 mm",
+    "germination": "7–21 days at 20–26°C",
+    "days": "90",
+    "sources": [
+      {
+        "supplier": "Veggie & Flower Garden Seeds",
+        "url": "https://veggiegardenseeds.com.au/products/cosmos-candy-mix-flower-x-30-seeds"
+      }
+    ],
+    "notes": "Pinch at 30 cm / three true leaf sets. Frost tender. Harvest as petals begin to open.",
+    "packets": 1,
+    "seedCount": 50,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  },
+  {
+    "id": "okra",
+    "name": "Okra · Clemson’s Spineless",
+    "side": "food",
+    "life": "Annual in Melbourne",
+    "spacing": 60,
+    "rowSpacing": 100,
+    "height": 100,
+    "months": [
+      10,
+      11,
+      12
+    ],
+    "method": "Trays or direct",
+    "depth": "10 mm",
+    "germination": "12–14 days at 23–33°C",
+    "days": "80",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/okra-clemsons-spineless"
+      }
+    ],
+    "notes": "A tender perennial grown as an annual locally. Wait for sustained warmth; use your soil thermometer.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-14"
+  }
+]

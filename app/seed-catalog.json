@@ -831,5 +831,205 @@
     "seedCount": null,
     "position": "Full sun; moist, well-drained soil",
     "checked": "2026-09-14"
+  },
+  {
+    "id": "costoluto-fiorentino",
+    "name": "Tomato · Costoluto Fiorentino",
+    "side": "food",
+    "life": "Annual heirloom",
+    "spacing": 60,
+    "rowSpacing": 75,
+    "height": 200,
+    "months": [9, 10, 11, 12],
+    "method": "Trays",
+    "depth": "0.5 cm",
+    "germination": "Warm soil, 7–14 days",
+    "days": "75–80",
+    "sources": [
+      {
+        "supplier": "The Lost Seed",
+        "url": "https://www.thelostseed.com.au/costoluto-fiorentino"
+      }
+    ],
+    "notes": "Italian climbing heirloom from Florence. Vigorous plant to 2 m; stake it. Heavily lobed, slightly flattened beefsteak fruit to 10 cm, for fresh eating, sauce or grilling. The supplier does not publish sowing depth or spacing, so those are clearly labelled planner estimates.",
+    "packets": 1,
+    "seedCount": 150,
+    "position": "Full sun; stake or trellis",
+    "checked": "2026-09-25"
+  },
+  {
+    "id": "jaune-flamme",
+    "name": "Tomato · Jaune Flamme",
+    "side": "food",
+    "life": "Annual heirloom",
+    "spacing": 60,
+    "rowSpacing": 75,
+    "height": 200,
+    "months": [9, 10, 11, 12],
+    "method": "Trays",
+    "depth": "0.5 cm",
+    "germination": "Warm soil, 7–14 days",
+    "days": "60–80",
+    "sources": [
+      {
+        "supplier": "The Lost Seed",
+        "url": "https://www.thelostseed.com.au/jaune-flammee"
+      }
+    ],
+    "notes": "French climbing heirloom, also sold as Flammee. High-yielding clusters of 6–8 sweet, fruity orange-apricot tomatoes about 4 cm across. Keep watering even: the supplier warns fruit may crack with overwatering. The supplier does not publish sowing depth, spacing or height, so those are clearly labelled planner estimates.",
+    "packets": 1,
+    "seedCount": 150,
+    "position": "Full sun; stake or trellis",
+    "checked": "2026-09-25"
+  },
+  {
+    "id": "sterpeul",
+    "name": "Okra · Sterpeul (Star Pod)",
+    "side": "food",
+    "life": "Annual in Melbourne",
+    "spacing": 60,
+    "rowSpacing": 75,
+    "height": 80,
+    "months": [10, 11, 12],
+    "method": "Trays or direct",
+    "depth": "10 mm",
+    "germination": "Warm soil, typically 18–32°C",
+    "days": "Extra early; exact days not specified",
+    "sources": [
+      {
+        "supplier": "The Lost Seed",
+        "url": "https://www.thelostseed.com.au/okra/"
+      }
+    ],
+    "notes": "Ethiopian heirloom meaning ‘Star Pod’. The supplier describes dark-green, ridged pods on a short, compact bush. The supplier’s okra guide recommends sowing in a Melbourne-style cool climate from mid-spring to early summer; 80 cm height and spacing are planning estimates because no cultivar dimensions are supplied.",
+    "packets": 1,
+    "seedCount": null,
+    "position": "Full sun; warm, well-drained soil",
+    "checked": "2026-09-25"
+  },
+  {
+    "id": "costata-romanesco",
+    "name": "Zucchini · Costata Romanesco",
+    "side": "food",
+    "life": "Annual heirloom",
+    "spacing": 90,
+    "rowSpacing": 100,
+    "height": 70,
+    "months": [10, 11, 12],
+    "method": "Direct or trays",
+    "depth": "2 cm",
+    "germination": "Warm soil, 20–32°C",
+    "days": "60–70",
+    "sources": [
+      {
+        "supplier": "The Lost Seed",
+        "url": "https://www.thelostseed.com.au/costata-romanesco-csb-a"
+      }
+    ],
+    "notes": "Italian heirloom with pale-green, lightly ridged fruit and rich, nutty flavour. Use like zucchini, or harvest at about 15 cm with flowers attached. Sow after frost; keep the rich, well-drained soil evenly watered. Height and spacing are planning estimates because the supplier does not give plant dimensions.",
+    "packets": 1,
+    "seedCount": 15,
+    "position": "Full sun; rich, well-drained soil",
+    "checked": "2026-09-25"
+  },
+  {
+    "id": "sunflower-compact-ice",
+    "name": "Sunflower · Compact Ice Spray F1",
+    "side": "flowers",
+    "life": "Frost-hardy annual hybrid",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 80,
+    "months": [9, 10, 11, 12],
+    "method": "Direct or trays",
+    "depth": "10 mm",
+    "germination": "7–14 days at 21–30°C",
+    "days": "65–70",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/Sunflower-Compact-Ice-Spray-F1-p"
+      }
+    ],
+    "notes": "Pollen-free, branched compact sunflower with green centres and lemon to lemon-peach petals. Multiple flowers per plant; useful for cutting, beds and pollinators. F1 seed will not grow true if saved.",
+    "packets": 1,
+    "seedCount": 10,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-25"
+  },
+  {
+    "id": "sunflower-compact-lilac",
+    "name": "Sunflower · Compact Lilac Spray F1",
+    "side": "flowers",
+    "life": "Frost-hardy annual hybrid",
+    "spacing": 30,
+    "rowSpacing": 30,
+    "height": 80,
+    "months": [9, 10, 11, 12],
+    "method": "Direct or trays",
+    "depth": "10 mm",
+    "germination": "7–14 days at 21–30°C",
+    "days": "65–70",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/sunflower-compact-lilac-spray-p"
+      }
+    ],
+    "notes": "Pollen-free, branched compact sunflower with dark centres and mauve, peach and lemon petals. Multiple flowers per plant; suitable for cutting, beds and pollinators. F1 seed will not grow true if saved.",
+    "packets": 1,
+    "seedCount": 10,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-25"
+  },
+  {
+    "id": "silverbeet-orange-fantasia",
+    "name": "Silverbeet · Orange Fantasia",
+    "side": "food",
+    "life": "Hardy biennial, usually grown as an annual",
+    "spacing": 30,
+    "rowSpacing": 50,
+    "height": 60,
+    "months": [1, 2, 3, 4, 5, 9, 10, 11, 12],
+    "method": "Direct or trays",
+    "depth": "15 mm",
+    "germination": "5–10 days at 10–30°C",
+    "days": "60 (30 for baby leaves)",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/silverbeet-orange-fantasia"
+      }
+    ],
+    "notes": "Light orange stalks, veins and midribs with crumpled green leaves. Very productive; harvest baby leaves or cut leaves and stalks as needed. Keep watered, remove flower stems, and watch for downy mildew and leaf spot.",
+    "packets": 1,
+    "seedCount": 20,
+    "position": "Full sun; moist, well-drained soil",
+    "checked": "2026-09-25"
+  },
+  {
+    "id": "rocket-tsc",
+    "name": "Rocket",
+    "side": "food",
+    "life": "Hardy annual",
+    "spacing": 40,
+    "rowSpacing": 40,
+    "height": 100,
+    "months": [2, 3, 8, 9, 10, 11],
+    "method": "Direct or trays",
+    "depth": "3 mm",
+    "germination": "7–21 days at 15–20°C",
+    "days": "60",
+    "sources": [
+      {
+        "supplier": "The Seed Collection",
+        "url": "https://www.theseedcollection.com.au/rocket"
+      }
+    ],
+    "notes": "Large serrated leaves with a peppery flavour; pick young leaves as needed. Suited to baby-leaf and microgreen production. The supplied 100 cm height is the full mature/flowering size, not the usual leafy harvest height.",
+    "packets": 1,
+    "seedCount": 125,
+    "position": "Part or full sun; well-drained soil",
+    "checked": "2026-09-25"
   }
 ]

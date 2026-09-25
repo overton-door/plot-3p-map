@@ -995,7 +995,9 @@ export default function Page() {
     e.stopPropagation();
     if (e.shiftKey && mode === "move") return;
     const blockIds =
-      selectedIds.includes(b.id) && mode === "move" ? selectedIds : [b.id];
+      selectedIds.includes(b.id) && mode === "move"
+        ? selectedIds.filter((id) => !plan.blocks.find((block) => block.id === id)?.locked)
+        : [b.id];
     if (!selectedIds.includes(b.id) || mode !== "move") select(b.id);
     if (b.locked) {
       setNotice("Unlock this block before moving or resizing it.");
